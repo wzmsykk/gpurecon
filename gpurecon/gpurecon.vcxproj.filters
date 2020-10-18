@@ -1,0 +1,28 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <CudaCompile Include="kernel.cu" />
+    <CudaCompile Include="Backprojxz.cu" />
+    <CudaCompile Include="Backprojyz.cu" />
+    <CudaCompile Include="calc.cu" />
+    <CudaCompile Include="converttolor.cu" />
+    <CudaCompile Include="converttolorxz.cu" />
+    <CudaCompile Include="converttoloryz.cu" />
+    <CudaCompile Include="deviceutil.cu" />
+    <CudaCompile Include="Forwardprojxz.cu" />
+    <CudaCompile Include="Forwardprojyz.cu" />
+    <CudaCompile Include="main.cu" />
+    <CudaCompile Include="normalize.cu" />
+    <CudaCompile Include="partlor.cu" />
+    <CudaCompile Include="rotate.cu" />
+    <CudaCompile Include="util.cu" />
+    <CudaCompile Include="attenucorrxz.cu" />
+    <CudaCompile Include="Backprojxz_ac.cu" />
+    <CudaCompile Include="attenucorryz.cu" />
+    <CudaCompile Include="Backprojyz_ac.cu" />
+    <CudaCompile Include="genacmatrix.cu" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="headerfiles.h" />
+  </ItemGroup>
+</Project>
