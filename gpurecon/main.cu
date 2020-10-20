@@ -184,8 +184,11 @@ int main(int argc, char** argv)
 	printf("(MEMORY): allocating memory to store temp attenuation matrix, device memory used: %lf MB\n", totalDeviceMemoryUsed / 1048576.0);
 
 
-	genacmatrix<<<256,512>>>(attenuation_matrix);
-
+	genacmatrix<<<1,1>>>(attenuation_matrix,nullptr);
+	if (DebugInfo > 0) {
+		SaveImageToFile(attenuation_matrix, "ATT_IMAGE", Nx* Ny* Nz);
+	}
+	
 	//new lines end
 
 	int totalnumoflinesxz = sizen[1];
@@ -230,8 +233,8 @@ int main(int argc, char** argv)
 		}
 		Frotate<<<256,512>>>(dev_back_image, dev_tempback_image);
 		Frotate <<<256, 512 >>> (attenuation_matrix, temp_attenuation_matrix);
-
-
+		SaveImageToFile(dev_back_image, "dev_back_img.bin", Nx * Ny * Nz);
+		SaveImageToFile(dev_tempback_image, "dev_back_img_roted.bin", Nx * Ny * Nz);
 		if(DebugInfo>0)
 		{
 			printf("***********************************************************************************\n");
@@ -255,7 +258,8 @@ int main(int argc, char** argv)
 			
 		} // if using OSEM, move the iteration to #OSEM
 
-		Frotate<<<256,512>>>(dev_back_image, dev_tempback_image);
+		Brotate<<<256,512>>>(dev_back_image, dev_tempback_image);//转回去
+		Brotate << <256, 512 >> > (attenuation_matrix, temp_attenuation_matrix);
 		cudaMemcpy(dev_back_image, dev_tempback_image, Nx*Ny*Nz *sizeof(float ),cudaMemcpyDeviceToDevice);
 		cudaMemcpy(attenuation_matrix, temp_attenuation_matrix, Nx * Ny * Nz * sizeof(float), cudaMemcpyDeviceToDevice);
 
@@ -284,8 +288,10 @@ int main(int argc, char** argv)
 	float elapsedTime;
 	cudaEventElapsedTime(&elapsedTime,start,stop);
 
-	SaveImageToFile(dev_image, "image.bin", Nx*Ny*Nz);
 
+	SaveImageToFile(dev_image, "image.bin", Nx * Ny * Nz);
+	Rrotate << <256, 512 >> > (dev_image, dev_tempback_image);//存为ZYX格式	
+	SaveImageToFile(dev_tempback_image, "imageZYX.bin", Nx * Ny * Nz);
 	printf("************************************************\n");
 	printf("   all done!! elapsed time is %f s\n",elapsedTime/1000.0);	
 	printf("************************************************\n");

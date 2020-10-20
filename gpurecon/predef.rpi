@@ -1,0 +1,26 @@
+# RPI v0.1 - BEGIN #
+#
+# Total number of images?
+200
+# General header offset (bytes)?
+0
+# Image   header offset (bytes)?
+0
+# Repeated image header?
+no
+# Swap pixel bytes?
+no
+# Identical images?
+yes
+# Absolute offset in bytes?
+0
+# Image columns?
+200
+# Image rows?
+30
+# Pixel data type?
+10
+# Redo input for next file?
+no
+#
+# RPI v0.1 - END #

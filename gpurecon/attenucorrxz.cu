@@ -21,7 +21,6 @@ __global__ void attenucorrxz(float* lines, int linesN, float* attenuation_matrix
 		}
 		//由于dy>dx且dy>dz
 		//y为最大步进方向,y改变1,x,z改变均小于1
-		float dl = sqrt(the_line->dx * the_line->dx + the_line->dy * the_line->dy + the_line->dz * the_line->dz);
 		// line direction
 		float l1 = the_line->dx, l2 = the_line->dz;
 		float atf = 0;
@@ -30,7 +29,7 @@ __global__ void attenucorrxz(float* lines, int linesN, float* attenuation_matrix
 			// point (yi,zi,xi)
 			float x = the_line->x0 + t * l1, z = the_line->z0 + t * l2;
 			int xx = floor(x + 0.5), zz = floor(z + 0.5);
-			atf += 1.0 * dl / the_line->dy * attenuation_matrix[img_slice * ysli + Nx * zz + xx];
+			atf += 1.0 /abs( the_line->dy) * attenuation_matrix[img_slice * ysli + Nx * zz + xx];
 
 		}
 		if (atf > 0) {

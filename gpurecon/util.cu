@@ -50,4 +50,6 @@ void SaveImageToFile(float * dev_image, char* filename, int size)
     printf("saved image to %s \n",filename);
 	fclose(save_image);
 	free(host_image);    
+
+    //MATRIX[Y][Z][X]
 }
