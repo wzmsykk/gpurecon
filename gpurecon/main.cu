@@ -175,6 +175,9 @@ int main(int argc, char** argv)
 
 	//new lines for attenuation correction
 	float* attenuation_matrix;
+	CTdims* ctdim;
+	cudaMalloc((void**)&ctdim, sizeof(CTdims));
+	cudaMemset((void**)&ctdim, 0.0, sizeof(CTdims));
 	cudaMalloc((void**)&attenuation_matrix, Nx* Ny* Nz * sizeof(float));
 	cudaMemset((void**)&attenuation_matrix, 0.0, Nx * Ny * Nz * sizeof(float));
 	float* temp_attenuation_matrix;
@@ -184,8 +187,8 @@ int main(int argc, char** argv)
 	printf("(MEMORY): allocating memory to store temp attenuation matrix, device memory used: %lf MB\n", totalDeviceMemoryUsed / 1048576.0);
 
 
-	genacmatrix<<<1,1>>>(attenuation_matrix,nullptr);
-	if (DebugInfo > 0) {
+	genacmatrix<<<1,1>>>(attenuation_matrix,ctdim,nullptr);
+	if (DebugFile > 0) {
 		SaveImageToFile(attenuation_matrix, "ATT_IMAGE", Nx* Ny* Nz);
 	}
 	
@@ -211,17 +214,21 @@ int main(int argc, char** argv)
 
 	for (int iter=0;iter<iterationCount;iter++)
 	{
-
-		for (i=0; i<totalnumoflinesxz/nlines; i++)
+		//TO DO 
+		for (i= 0; i< ceil(totalnumoflinesxz / (float)nlines); i++)
 		{
 			int realnlines = nlines;
+			if ((i+1) * nlines > totalnumoflinesxz) {
+				realnlines = totalnumoflinesxz - i * nlines;
+				printf("(DEBUG) LAST BATCH XZ LOR SIZE=%d\n",realnlines);
+			}//防止总数少于batchsize batchsize<0出现奇怪的bug
 			int noffset = i*nlines;
 			
 			
 
-			convertolorxz<<<256,512>>>(dev_lor_data_array,dev_indexymax,lines,realnlines,noffset);
+			convertolorxz<<<256,512>>>(dev_lor_data_array,dev_indexymax,lines,realnlines,noffset);//将lor_data中lor根据indexxy存入lines
 
-			attenucorrxz << <256, 512 >> > (lines, realnlines, attenuation_matrix);//new line for attenuation correction
+			//attenucorrxz << <256, 512 >> > (lines, realnlines, ctdim, attenuation_matrix);//new line for attenuation correction
 			Forwardprojxz<<<256,512>>>(dev_image, lines, realnlines);
 			Backprojxz_ac <<<256, 512 >>> (dev_image, dev_back_image, lines, realnlines, 0);//changed 			
 																							//Backprojxz<<<256,512>>>(dev_image,dev_back_image,lines,realnlines,0);
@@ -233,8 +240,12 @@ int main(int argc, char** argv)
 		}
 		Frotate<<<256,512>>>(dev_back_image, dev_tempback_image);
 		Frotate <<<256, 512 >>> (attenuation_matrix, temp_attenuation_matrix);
-		SaveImageToFile(dev_back_image, "dev_back_img.bin", Nx * Ny * Nz);
-		SaveImageToFile(dev_tempback_image, "dev_back_img_roted.bin", Nx * Ny * Nz);
+		if (DebugFile > 0)
+		{
+			SaveImageToFile(dev_back_image, "dev_back_img.bin", Nx * Ny * Nz);
+			SaveImageToFile(dev_tempback_image, "dev_back_img_roted.bin", Nx * Ny * Nz);
+		}
+		
 		if(DebugInfo>0)
 		{
 			printf("***********************************************************************************\n");
@@ -244,14 +255,19 @@ int main(int argc, char** argv)
 		cudaMemcpy(dev_back_image, dev_tempback_image, Nx*Ny*Nz *sizeof(float ),cudaMemcpyDeviceToDevice);
 		cudaMemcpy(attenuation_matrix, temp_attenuation_matrix, Nx * Ny * Nz * sizeof(float), cudaMemcpyDeviceToDevice);
 
-		for (i=0; i<totalnumoflinesyz/nlines; i++)
+		for (i = 0; i < ceil(totalnumoflinesyz / (float)nlines); i++)
+		//for (i = 0; i < totalnumoflinesyz / nlines ; i++)
 		{
 			int realnlines = nlines;
+			if ((i + 1) * nlines > totalnumoflinesyz) {
+				realnlines = totalnumoflinesyz - i * nlines;
+				printf("(DEBUG) LAST BATCH YZ LOR SIZE=%d\n", realnlines);
+			}//防止总数少于batchsize
 			int noffset = i*nlines;
 			
 
 			convertoloryz<<<256,512>>>(dev_lor_data_array,dev_indexxmax,lines,realnlines,noffset);
-			attenucorryz << <256, 512 >> > (lines, realnlines, attenuation_matrix);//new line for attenuation correction
+			//attenucorryz << <256, 512 >> > (lines, realnlines, ctdim, attenuation_matrix);//new line for attenuation correction
 
 			Forwardprojyz<<<256,512>>>(dev_image, lines, realnlines);
 			Backprojyz_ac<<<256,512>>>(dev_image,dev_back_image,lines,realnlines,0);

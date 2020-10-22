@@ -1,6 +1,7 @@
 #include"headerfiles.h"
 __device__ Lorposition CalcLorPositionFull(short rsectorID1, short rsectorID2, short moduleID1, short moduleID2, short crystalID1, short crystalID2)
 {
+	//从晶体ID得到XYZ
     float ring_radius = 315.5;
 	int module_num = 5;
 	int rsector_num = 48;

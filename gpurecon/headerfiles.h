@@ -20,7 +20,7 @@
 #define pixel_size 2.0
 #define ISIGMA 0.8824
 #define DebugInfo 1
-
+#define DebugFile 1
 #define CUDAlor_size 11 //sizeofcudalorstruct
 
 struct maxx_tuple
@@ -87,9 +87,9 @@ typedef struct
 typedef struct
 {
 	int xdim, ydim, zdim;//dim for voxels in ct
-	float xsize, ysize, zsize;//voxel sizes in different directions
-	short* ctptr;
-}CT;
+	float xspacing, yspacing, zspacing;//voxel spacing in different directions
+	float x0, y0, z0;//minimum value of x,y,z planes in mm
+}CTdims;
 
 __global__ void convertolor(short *dev_lor_data_array, float *dx_array,float *dy_array,float *dz_array, int nlines);
 void partlor(float *hx_array,float *hy_array,float *hz_array, int totalnumoflines, int *indexxmax, int *indexymax, int *indexzmax, int *sizen);
@@ -106,9 +106,9 @@ __global__ void Brotate(float* back_imagetemp, float* back_image);
 __global__ void Rrotate(float* imageYZX, float* imageZYX);
 __global__ void Fnorm(float *dev_image, float *back_image, float *dev_norm_image);
 
-__global__ void attenucorrxz(float* lines, int linesN, float* attenuation_matrix);
-__global__ void attenucorryz(float* lines, int linesN, float* attenuation_matrix);
-__global__ void genacmatrix(float* attenuation_matrix,short* ct_matrix);
+__global__ void attenucorrxz(float* lines, int linesN, CTdims* CTdim, float* attenuation_matrix);
+__global__ void attenucorryz(float* lines, int linesN, CTdims* CTdim, float* attenuation_matrix);
+__global__ void genacmatrix(float* attenuation_matrix, CTdims* CTdim, short* ct_matrix);
 int GetLines(char* filename);
 void PrintConfig();
 void CalcNormImage(float *norm_image, int numoflinesForNorm, char* filename);

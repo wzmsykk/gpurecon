@@ -14,9 +14,9 @@ __global__ void convertolor(short *dev_lor_data_array, float *dx_array,float *dy
 		
 	Lorposition lor = CalcLorPositionFull(rsectorID1, rsectorID2, moduleID1, moduleID2, crystalID1, crystalID2);
 
-	*(dx_array+i) = (lor.x1-lor.x0)/sqrt((lor.x1-lor.x0)*(lor.x1-lor.x0)+(lor.y1-lor.y0)*(lor.y1-lor.y0)+(lor.z1-lor.z0)*(lor.z1-lor.z0));//X方向导数
-	*(dy_array+i) = (lor.y1-lor.y0)/sqrt((lor.x1-lor.x0)*(lor.x1-lor.x0)+(lor.y1-lor.y0)*(lor.y1-lor.y0)+(lor.z1-lor.z0)*(lor.z1-lor.z0));//Y方向导数
-	*(dz_array+i) = (lor.z1-lor.z0)/sqrt((lor.x1-lor.x0)*(lor.x1-lor.x0)+(lor.y1-lor.y0)*(lor.y1-lor.y0)+(lor.z1-lor.z0)*(lor.z1-lor.z0));//Z方向导数
+	*(dx_array+i) = (lor.x1-lor.x0)/sqrt((lor.x1-lor.x0)*(lor.x1-lor.x0)+(lor.y1-lor.y0)*(lor.y1-lor.y0)+(lor.z1-lor.z0)*(lor.z1-lor.z0));//dx/dl
+	*(dy_array+i) = (lor.y1-lor.y0)/sqrt((lor.x1-lor.x0)*(lor.x1-lor.x0)+(lor.y1-lor.y0)*(lor.y1-lor.y0)+(lor.z1-lor.z0)*(lor.z1-lor.z0));//dy/dl
+	*(dz_array+i) = (lor.z1-lor.z0)/sqrt((lor.x1-lor.x0)*(lor.x1-lor.x0)+(lor.y1-lor.y0)*(lor.y1-lor.y0)+(lor.z1-lor.z0)*(lor.z1-lor.z0));//dz/dl
 	}
 __syncthreads();
 }

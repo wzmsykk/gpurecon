@@ -39,7 +39,7 @@ __global__ void Forwardprojxz( float *dev_image, float *lines, int linesN )
          			float kern = (d2 < max_distance) ? exp(-d2 * ISIGMA) : 0;
          			sum += slice[xx + Nx * zz] * kern; 
       			} //endif
-   		} // endfor Write the value back to global memory 
+   			} // endfor Write the value back to global memory 
 		} //endfor
 		  the_line->value += sum;
 	} // endfor line	  
