@@ -21,7 +21,7 @@
 #define ISIGMA 0.8824
 #define DebugInfo 1
 #define DebugFile 1
-#define CUDAlor_size 11 //sizeofcudalorstruct
+//#define DEBUG
 
 struct maxx_tuple
 {
@@ -69,6 +69,27 @@ struct maxz_tuple
 		}
 };
 
+struct saxbc_functor
+{
+	float a;
+	float b;
+	float c;
+public:
+	saxbc_functor(float a_,float b_,float c_) 
+	{
+		a = a_;
+		b = b_;
+		c = c_;
+	}
+
+	__host__ __device__
+		float operator()(const float& x) const
+	{
+		return (a * x + b)/c;
+	}
+};
+
+
 typedef struct
 {
        float x0,x1;
@@ -78,10 +99,11 @@ typedef struct
 
 typedef struct
 {
-       float x0,x1,dx;//changed for attenuation correction
-        float y0,y1,dy;
-        float z0,z1,dz;
-        float value,attcorrvalue;
+	float x0, x1, dx;//changed for attenuation correction
+	float y0, y1, dy;
+	float z0, z1, dz;//in voxel
+	float rx0, rx1, ry0, ry1, rz0, rz1;//in real mm
+	float value, attcorrvalue;
 }CUDAlor;
 
 typedef struct
@@ -106,9 +128,10 @@ __global__ void Brotate(float* back_imagetemp, float* back_image);
 __global__ void Rrotate(float* imageYZX, float* imageZYX);
 __global__ void Fnorm(float *dev_image, float *back_image, float *dev_norm_image);
 
-__global__ void attenucorrxz(float* lines, int linesN, CTdims* CTdim, float* attenuation_matrix);
-__global__ void attenucorryz(float* lines, int linesN, CTdims* CTdim, float* attenuation_matrix);
-__global__ void genacmatrix(float* attenuation_matrix, CTdims* CTdim, short* ct_matrix);
+int attenucorrxyz(float* lines, CTdims* ctdim, float* attenuation_matrix,int dbglv);
+int batchcorr(float* lines, int linesN, CTdims* ctdim, float* attenuation_matrix);
+//__global__ void attenucorryz(float* lines, int linesN, CTdims* ctdim, float* attenuation_matrix);
+__global__ void genacmatrix(float* attenuation_matrix, CTdims* ctdim, short* ct_matrix);
 int GetLines(char* filename);
 void PrintConfig();
 void CalcNormImage(float *norm_image, int numoflinesForNorm, char* filename);

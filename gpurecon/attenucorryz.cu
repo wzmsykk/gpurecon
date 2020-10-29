@@ -1,5 +1,5 @@
 #include"headerfiles.h"
-__global__ void attenucorryz(float* lines, int linesN, CTdims* CTdim, float* attenuation_matrix) {
+__global__ void attenucorryz(float* lines, int linesN, CTdims* ctdim, float* attenuation_matrix) {
 
 	int img_slice = Ny * Nz;
 

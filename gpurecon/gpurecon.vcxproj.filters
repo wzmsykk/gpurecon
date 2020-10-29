@@ -16,11 +16,11 @@
     <CudaCompile Include="partlor.cu" />
     <CudaCompile Include="rotate.cu" />
     <CudaCompile Include="util.cu" />
-    <CudaCompile Include="attenucorrxz.cu" />
     <CudaCompile Include="Backprojxz_ac.cu" />
     <CudaCompile Include="attenucorryz.cu" />
     <CudaCompile Include="Backprojyz_ac.cu" />
     <CudaCompile Include="genacmatrix.cu" />
+    <CudaCompile Include="attenucorrxz.cu" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="headerfiles.h" />

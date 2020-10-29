@@ -13,19 +13,27 @@ __global__ void convertoloryz(short *dev_lor_data_array, int *dev_indexxmax,floa
 	
 	Lorposition lor = CalcLorPositionFull(rsectorID1,rsectorID2,moduleID1, moduleID2, crystalID1, crystalID2);
 
-	int totalparams = CUDAlor_size;
+	int totalparams = sizeof(CUDAlor) / sizeof(float);
 
-	*(lines + 0 + totalparams * i) = lor.x0 / pixel_size + (Nx - 1) / 2.0f;
-	*(lines + 1 + totalparams * i) = lor.x1 / pixel_size + (Nx - 1) / 2.0f;
-	*(lines + 2 + totalparams * i) = (lor.x1 - lor.x0) / sqrt((lor.x1 - lor.x0) * (lor.x1 - lor.x0) + (lor.y1 - lor.y0) * (lor.y1 - lor.y0) + (lor.z1 - lor.z0) * (lor.z1 - lor.z0));
-	*(lines + 3 + totalparams * i) = lor.y0 / pixel_size + (Ny - 1) / 2.0f;
-	*(lines + 4 + totalparams * i) = lor.y1 / pixel_size + (Ny - 1) / 2.0f;
-	*(lines + 5 + totalparams * i) = (lor.y1 - lor.y0) / sqrt((lor.x1 - lor.x0) * (lor.x1 - lor.x0) + (lor.y1 - lor.y0) * (lor.y1 - lor.y0) + (lor.z1 - lor.z0) * (lor.z1 - lor.z0));
-	*(lines + 6 + totalparams * i) = lor.z0 / pixel_size + (Nz - 1) / 2.0f;
-	*(lines + 7 + totalparams * i) = lor.z1 / pixel_size + (Nz - 1) / 2.0f;
-	*(lines + 8 + totalparams * i) = (lor.z1 - lor.z0) / sqrt((lor.x1 - lor.x0) * (lor.x1 - lor.x0) + (lor.y1 - lor.y0) * (lor.y1 - lor.y0) + (lor.z1 - lor.z0) * (lor.z1 - lor.z0));
-	*(lines + 9 + totalparams * i) = 0.0;
-	*(lines + 10 + totalparams * i) = 1.0;
+	CUDAlor* this_line = (CUDAlor*)lines + i;
+
+	this_line->x0 = lor.x0 / pixel_size + (Nx - 1) / 2.0f;
+	this_line->x1 = lor.x1 / pixel_size + (Nx - 1) / 2.0f;
+	this_line->dx = (lor.x1 - lor.x0) / sqrt((lor.x1 - lor.x0) * (lor.x1 - lor.x0) + (lor.y1 - lor.y0) * (lor.y1 - lor.y0) + (lor.z1 - lor.z0) * (lor.z1 - lor.z0));
+	this_line->y0 = lor.y0 / pixel_size + (Ny - 1) / 2.0f;
+	this_line->y1 = lor.y1 / pixel_size + (Ny - 1) / 2.0f;
+	this_line->dy = (lor.y1 - lor.y0) / sqrt((lor.x1 - lor.x0) * (lor.x1 - lor.x0) + (lor.y1 - lor.y0) * (lor.y1 - lor.y0) + (lor.z1 - lor.z0) * (lor.z1 - lor.z0));
+	this_line->z0 = lor.z0 / pixel_size + (Nz - 1) / 2.0f;
+	this_line->z1 = lor.z1 / pixel_size + (Nz - 1) / 2.0f;
+	this_line->dz = (lor.z1 - lor.z0) / sqrt((lor.x1 - lor.x0) * (lor.x1 - lor.x0) + (lor.y1 - lor.y0) * (lor.y1 - lor.y0) + (lor.z1 - lor.z0) * (lor.z1 - lor.z0));
+	this_line->rx0 = lor.x0;
+	this_line->rx1 = lor.x1;
+	this_line->ry0 = lor.y0;
+	this_line->ry1 = lor.y1;
+	this_line->rz0 = lor.z0;
+	this_line->rz1 = lor.z1;
+	this_line->value = 0.0;
+	this_line->attcorrvalue = 1.0;
 	/************************************************
 	lines的结构
 	lines[x][0]=lor.x0所处像素位置
