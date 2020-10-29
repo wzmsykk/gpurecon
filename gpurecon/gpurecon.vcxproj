@@ -85,6 +85,7 @@
     </CudaCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <CudaCompile Include="attcorr_gpu.cu" />
     <CudaCompile Include="attenucorrxz.cu" />
     <CudaCompile Include="attenucorryz.cu" />
     <CudaCompile Include="Backprojxz.cu" />

@@ -21,6 +21,7 @@
     <CudaCompile Include="Backprojyz_ac.cu" />
     <CudaCompile Include="genacmatrix.cu" />
     <CudaCompile Include="attenucorrxz.cu" />
+    <CudaCompile Include="attcorr_gpu.cu" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="headerfiles.h" />

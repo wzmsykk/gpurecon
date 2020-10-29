@@ -112,6 +112,28 @@ typedef struct
 	float xspacing, yspacing, zspacing;//voxel spacing in different directions
 	float x0, y0, z0;//minimum value of x,y,z planes in mm
 }CTdims;
+typedef struct
+{
+	bool calcx, calcy, calcz;
+	bool done;
+}LineStatus;
+typedef struct
+{
+	bool xid, yid, zid;
+}VoxelID;
+
+int batchcorr_gpu(float* lines, int linesN, CTdims* ctdim, float* attenuation_matrix);
+__global__ void calc_stat(float* lines, int nlines, LineStatus* linestat);
+__global__ void alphaextrema(float* lines, int nlines, CTdims* ctdim, LineStatus* linestat, float* amin, float* amax, float* tempvec_x_4, float* tempvec_y_4);
+__global__ void alphavecs(float* lines, int nlines, CTdims* ctdim, LineStatus* linestat, float* amin, float* amax, float* tempmat_alphas, float* mat_alphas, int* alphavecsize);
+__global__ void dist_and_ID_in_voxel(float* lines, int nlines, CTdims* ctdim, LineStatus* linestat, VoxelID* voxelidvec, float* distance, float* mat_alphas, int* alphavecsize);
+__global__ void attu_inner_product(float* lines, int nlines, CTdims* ctdim, float* attenuation_matrix, LineStatus* linestat, VoxelID* voxelidvec, float* distance, int* alphavecsize);
+
+int attenucorrxyz(float* lines, CTdims* ctdim, float* attenuation_matrix, int dbglv);
+int batchcorr(float* lines, int linesN, CTdims* ctdim, float* attenuation_matrix);
+
+
+
 
 __global__ void convertolor(short *dev_lor_data_array, float *dx_array,float *dy_array,float *dz_array, int nlines);
 void partlor(float *hx_array,float *hy_array,float *hz_array, int totalnumoflines, int *indexxmax, int *indexymax, int *indexzmax, int *sizen);
@@ -128,8 +150,7 @@ __global__ void Brotate(float* back_imagetemp, float* back_image);
 __global__ void Rrotate(float* imageYZX, float* imageZYX);
 __global__ void Fnorm(float *dev_image, float *back_image, float *dev_norm_image);
 
-int attenucorrxyz(float* lines, CTdims* ctdim, float* attenuation_matrix,int dbglv);
-int batchcorr(float* lines, int linesN, CTdims* ctdim, float* attenuation_matrix);
+
 //__global__ void attenucorryz(float* lines, int linesN, CTdims* ctdim, float* attenuation_matrix);
 __global__ void genacmatrix(float* attenuation_matrix, CTdims* ctdim, short* ct_matrix);
 int GetLines(char* filename);

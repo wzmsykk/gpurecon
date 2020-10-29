@@ -18,6 +18,10 @@ __global__ void convertolor(short *dev_lor_data_array, float *dx_array,float *dy
 	*(dy_array+i) = (lor.y1-lor.y0)/sqrt((lor.x1-lor.x0)*(lor.x1-lor.x0)+(lor.y1-lor.y0)*(lor.y1-lor.y0)+(lor.z1-lor.z0)*(lor.z1-lor.z0));//dy/dl
 	*(dz_array+i) = (lor.z1-lor.z0)/sqrt((lor.x1-lor.x0)*(lor.x1-lor.x0)+(lor.y1-lor.y0)*(lor.y1-lor.y0)+(lor.z1-lor.z0)*(lor.z1-lor.z0));//dz/dl
 	}
+
+
+
+
 __syncthreads();
 }
 

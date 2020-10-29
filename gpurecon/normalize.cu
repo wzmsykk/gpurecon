@@ -54,7 +54,7 @@ void CalcNormImage(float *norm_image, int numoflinesForNorm, char* filename)
 	cudaMalloc ( ( void**)&dy_array,numoflinesForNorm*sizeof(float));
 	cudaMalloc ( ( void**)&dz_array,numoflinesForNorm*sizeof(float));
 
-	convertolor<<<512,512>>>(dev_lor_data_array,dx_array,dy_array,dz_array,numoflinesForNorm);
+	convertolor<<<128,128>>>(dev_lor_data_array,dx_array,dy_array,dz_array,numoflinesForNorm);
 
 	float *hx_array= (float *)malloc(sizeof(float)*numoflinesForNorm);
 	float *hy_array= (float *)malloc(sizeof(float)*numoflinesForNorm);
@@ -96,7 +96,7 @@ void CalcNormImage(float *norm_image, int numoflinesForNorm, char* filename)
 	cudaMemcpy(dev_back_image, norm_image, Nx*Ny*Nz *sizeof(float ),cudaMemcpyHostToDevice);
 
 
-	int nlines = 256*512;
+	int nlines = 128*128;
 	float * lines;
 	cudaMalloc ( ( void**)&lines, 7 * nlines * sizeof(float) );	// 7 elements for the lines structure
 
@@ -109,27 +109,27 @@ void CalcNormImage(float *norm_image, int numoflinesForNorm, char* filename)
 	{
 		int realnlines = nlines;
 		int noffset = i*nlines;
-		convertolorxz<<<256,512>>>(dev_lor_data_array,dev_indexymax,lines,realnlines,noffset);
-		Forwardprojxz<<<256,512>>>(dev_image, lines, realnlines);
-		Backprojxz<<<256,512>>>(dev_image,dev_back_image,lines,realnlines,1);
+		convertolorxz<<<128,128>>>(dev_lor_data_array,dev_indexymax,lines,realnlines,noffset);
+		Forwardprojxz<<<128,128>>>(dev_image, lines, realnlines);
+		Backprojxz<<<128,128>>>(dev_image,dev_back_image,lines,realnlines,1);
 	}
 
-	Frotate<<<256,512>>>(dev_back_image, dev_tempback_image);
+	Frotate<<<128,128>>>(dev_back_image, dev_tempback_image);
 	cudaMemcpy(dev_back_image, dev_tempback_image, Nx*Ny*Nz *sizeof(float ),cudaMemcpyDeviceToDevice);
 	for (int i=0; i<totalnumoflinesyz/nlines; i++)
 	{
 		int realnlines = nlines;
 		int noffset = i*nlines;
-		convertoloryz<<<256,512>>>(dev_lor_data_array,dev_indexxmax,lines,realnlines,noffset);
-		Forwardprojyz<<<256,512>>>(dev_image, lines, realnlines);
-		Backprojyz<<<256,512>>>(dev_image,dev_back_image,lines,realnlines,1);
+		convertoloryz<<<128,128>>>(dev_lor_data_array,dev_indexxmax,lines,realnlines,noffset);
+		Forwardprojyz<<<128,128>>>(dev_image, lines, realnlines);
+		Backprojyz<<<128,128>>>(dev_image,dev_back_image,lines,realnlines,1);
 	}
 
-	Frotate<<<256,512>>>(dev_back_image, dev_tempback_image);
+	Frotate<<<128,128>>>(dev_back_image, dev_tempback_image);
 	cudaMemcpy(dev_back_image, dev_tempback_image, Nx*Ny*Nz *sizeof(float ),cudaMemcpyDeviceToDevice);
-	// Frotate<<<256,512>>>(dev_back_image, dev_tempback_image);
+	// Frotate<<<128,128>>>(dev_back_image, dev_tempback_image);
 	// cudaMemcpy(dev_back_image, dev_tempback_image, Nx*Ny*Nz *sizeof(float ),cudaMemcpyDeviceToDevice);
-	// Frotate<<<256,512>>>(dev_back_image, dev_tempback_image);
+	// Frotate<<<128,128>>>(dev_back_image, dev_tempback_image);
 	// cudaMemcpy(dev_back_image, dev_tempback_image, Nx*Ny*Nz *sizeof(float ),cudaMemcpyDeviceToDevice);
 
 	cudaMemcpy(norm_image, dev_back_image, Nx*Ny*Nz *sizeof(float ),cudaMemcpyDeviceToHost);

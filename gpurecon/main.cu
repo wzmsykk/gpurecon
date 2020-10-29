@@ -19,7 +19,7 @@ int main(int argc, char** argv)
 
 	int totalnumoflines,i;
 	int shouldNormalize=0;
-	int batchsize=256;
+	int batchsize=256*128;
 	double totalDeviceMemoryUsed=0;
 	float * norm_image = (float *)malloc(sizeof(float)*Nx*Ny*Nz);
 	float * dev_norm_image;
@@ -108,7 +108,7 @@ int main(int argc, char** argv)
 	totalDeviceMemoryUsed += (double)(3*totalnumoflines * sizeof(float));
 	printf("(MEMORY): allocating delta x, y, z data, device memory used: %lf MB\n", totalDeviceMemoryUsed/1048576.0);
 	printf("sorting delta x, delta y, delta z\n");
-	convertolor<<<512,512>>>(dev_lor_data_array,dx_array,dy_array,dz_array,totalnumoflines);
+	convertolor<<<256,512>>>(dev_lor_data_array,dx_array,dy_array,dz_array,totalnumoflines);
 
 	float *hx_array= (float *)malloc(sizeof(float)*totalnumoflines);
 	float *hy_array= (float *)malloc(sizeof(float)*totalnumoflines);
@@ -165,7 +165,7 @@ int main(int argc, char** argv)
 	free(host_back_image);
 
 
-	int nlines = 256*512; // can adjust this one to make recon faster (need more memory)
+	int nlines = 128*128; // can adjust this one to make recon faster (need more memory)
 	nlines=batchsize;//in case of total events < default batchsize which caused blank image, change the batchsize to be less than total lines. 
 	float * lines;
 	cudaMalloc ( ( void**)&lines, sizeof(CUDAlor) * nlines );	// 11 elements for the lines structure
@@ -217,7 +217,7 @@ int main(int argc, char** argv)
 		//TO DO 
 		for (i= 0; i< ceil(totalnumoflinesxz / (float)nlines); i++)
 		{
-			if (i >= 1) break;
+			
 			int realnlines = nlines;
 			if ((i+1) * nlines > totalnumoflinesxz) {
 				realnlines = totalnumoflinesxz - i * nlines;
@@ -228,15 +228,15 @@ int main(int argc, char** argv)
 			
 
 			convertolorxz<<<256,512>>>(dev_lor_data_array,dev_indexymax,lines,realnlines,noffset);//将lor_data中lor根据indexxy存入lines
-			float* host_lines=(float*)malloc(realnlines*sizeof(CUDAlor));
-			cudaMemcpy(host_lines, lines, realnlines * sizeof(CUDAlor), cudaMemcpyDeviceToHost);
-			batchcorr(host_lines, realnlines, host_ctdim, device_attenuation_matrix);//new line for attenuation correction//new line for attenuation correction
-			cudaMemcpy(lines, host_lines, realnlines * sizeof(CUDAlor), cudaMemcpyHostToDevice);
-
-			free(host_lines);
+			//float* host_lines=(float*)malloc(realnlines*sizeof(CUDAlor));
+			//cudaMemcpy(host_lines, lines, realnlines * sizeof(CUDAlor), cudaMemcpyDeviceToHost);
+			//batchcorr(host_lines, realnlines, host_ctdim, device_attenuation_matrix);//new line for attenuation correction//new line for attenuation correction
+			//cudaMemcpy(lines, host_lines, realnlines * sizeof(CUDAlor), cudaMemcpyHostToDevice);
+			//free(host_lines);
+			batchcorr_gpu(lines, realnlines, ctdim, device_attenuation_matrix);
 			Forwardprojxz<<<256,512>>>(dev_image, lines, realnlines);
 			Backprojxz_ac <<<256, 512 >>> (dev_image, dev_back_image, lines, realnlines, 0);//changed 			
-																							//Backprojxz<<<256,512>>>(dev_image,dev_back_image,lines,realnlines,0);
+																							//Backprojxz<<<128,128>>>(dev_image,dev_back_image,lines,realnlines,0);
 		} // if using OSEM, move the iteration to #OSEM
 	
 		if(DebugInfo>0)
@@ -261,7 +261,7 @@ int main(int argc, char** argv)
 		for (i = 0; i < ceil(totalnumoflinesyz / (float)nlines); i++)
 		//for (i = 0; i < totalnumoflinesyz / nlines ; i++)
 		{
-			if (i >= 1) break;
+			
 			int realnlines = nlines;
 			if ((i + 1) * nlines > totalnumoflinesyz) {
 				realnlines = totalnumoflinesyz - i * nlines;
@@ -270,26 +270,29 @@ int main(int argc, char** argv)
 			int noffset = i*nlines;
 			
 
-			convertoloryz<<<256,512>>>(dev_lor_data_array,dev_indexxmax,lines,realnlines,noffset);
-			float* host_lines = (float*)malloc(realnlines * sizeof(CUDAlor));
-			cudaMemcpy(host_lines, lines, realnlines * sizeof(CUDAlor), cudaMemcpyDeviceToHost);
-			batchcorr(host_lines, realnlines, host_ctdim, device_attenuation_matrix);//new line for attenuation correction//new line for attenuation correction
-			cudaMemcpy(lines, host_lines, realnlines * sizeof(CUDAlor), cudaMemcpyHostToDevice);
-			free(host_lines);
+			convertoloryz<<<128,128>>>(dev_lor_data_array,dev_indexxmax,lines,realnlines,noffset);
+			//float* host_lines = (float*)malloc(realnlines * sizeof(CUDAlor));
+			//cudaMemcpy(host_lines, lines, realnlines * sizeof(CUDAlor), cudaMemcpyDeviceToHost);
+			//batchcorr(host_lines, realnlines, host_ctdim, device_attenuation_matrix);//new line for attenuation correction//new line for attenuation correction
+			//cudaMemcpy(lines, host_lines, realnlines * sizeof(CUDAlor), cudaMemcpyHostToDevice);
+			//free(host_lines);
+			batchcorr_gpu(lines, realnlines, ctdim, device_attenuation_matrix);
+
+			
 			Forwardprojyz<<<256,512>>>(dev_image, lines, realnlines);
 			Backprojyz_ac<<<256,512>>>(dev_image,dev_back_image,lines,realnlines,0);
 			
 		} // if using OSEM, move the iteration to #OSEM
 
 		Brotate<<<256,512>>>(dev_back_image, dev_tempback_image);//转回去
-		//Brotate << <256, 512 >> > (device_attenuation_matrix, temp_attenuation_matrix);//; no need of ROT
+		//Brotate << <128, 128 >> > (device_attenuation_matrix, temp_attenuation_matrix);//; no need of ROT
 		cudaMemcpy(dev_back_image, dev_tempback_image, Nx*Ny*Nz *sizeof(float ),cudaMemcpyDeviceToDevice);
 		//cudaMemcpy(device_attenuation_matrix, temp_attenuation_matrix, Nx * Ny * Nz * sizeof(float), cudaMemcpyDeviceToDevice);
 
-		// Frotate<<<256,512>>>(dev_back_image, dev_tempback_image);
+		// Frotate<<<128,128>>>(dev_back_image, dev_tempback_image);
 		// cudaMemcpy(dev_back_image, dev_tempback_image, Nx*Ny*Nz *sizeof(float ),cudaMemcpyDeviceToDevice);
 
-		// Frotate<<<256,512>>>(dev_back_image, dev_tempback_image);
+		// Frotate<<<128,128>>>(dev_back_image, dev_tempback_image);
 		// cudaMemcpy(dev_back_image, dev_tempback_image, Nx*Ny*Nz *sizeof(float ),cudaMemcpyDeviceToDevice);
 
 		if(shouldNormalize>0)
