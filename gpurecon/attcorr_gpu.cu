@@ -3,10 +3,21 @@
 #include <thrust/sort.h>
 #include <thrust/execution_policy.h>
 #include <thrust/unique.h>
-//#define MAX_TEMP_SIZE_PER_THREAD 
 
+#define GRIDSIZEX 128
+#define BLOCKSIZEX 128
+
+//#define DEBUG_CALC_PROC
+#define DEBUG_STEP_RESULT
+
+#define MAX_INFO_LINES 3
 int batchcorr_gpu(float* lines, int linesN, CTdims* ctdim, float* attenuation_matrix) {
 
+#ifdef DEBUG_STEP_RESULT
+	printf("linesN=%d\n", linesN);
+#endif // DEBUG_STEP_RESULT
+
+	
 	LineStatus* linestat;
 	float* amin, * amax;
 	float* tempvec_x_4f, *tempvec_y_4f, *tempvec_z_4f;
@@ -14,6 +25,8 @@ int batchcorr_gpu(float* lines, int linesN, CTdims* ctdim, float* attenuation_ma
 	float* mat_alphas;
 	float* dis;
 	int* alphavecsize;
+
+
 	CTdims* host_ctdim; 
 	host_ctdim = (CTdims*)malloc(sizeof(CTdims));
 	cudaMemcpy(host_ctdim, ctdim, sizeof(CTdims), cudaMemcpyDeviceToHost);
@@ -25,27 +38,57 @@ int batchcorr_gpu(float* lines, int linesN, CTdims* ctdim, float* attenuation_ma
 	free(host_ctdim);
 
 	VoxelID* voxelidvec;
+
+	//DEBUG
+#ifdef DEBUG_STEP_RESULT
+	FILE* fp = fopen("dumpattvalue.log", "w");
+	CUDAlor* host_line = (CUDAlor*)malloc(sizeof(CUDAlor) * linesN);
+	cudaMemcpy(host_line, lines, sizeof(CUDAlor) * linesN, cudaMemcpyDeviceToHost);
+	CUDAlor* thisline = host_line;
+	for (int i = 0; i < ((linesN< MAX_INFO_LINES)?linesN: MAX_INFO_LINES); i++) {
+		thisline = host_line + i;
+		fprintf(fp, "FIRST ID:%d\nx0 %f\nx1 %f\ny0 %f\ny1 %f\nz0 %f\nz1 %f\nav=%f\n", i, thisline->rx0, thisline->rx1, thisline->ry0, thisline->ry1, thisline->rz0, thisline->rz1, thisline->attcorrvalue);
+	}
+#endif // DEBUG_STEP_RESULT
+
 	cudaMalloc((void**)&linestat, sizeof(LineStatus) * linesN);
+	cudaMemset((void*)linestat, 0, sizeof(LineStatus) * linesN);
 	cudaMalloc((void**)&tempvec_x_4f, sizeof(float) * linesN*4);
 	cudaMalloc((void**)&tempvec_y_4f, sizeof(float) * linesN*4);
 	cudaMalloc((void**)&tempvec_z_4f, sizeof(float) * linesN*4);
 	cudaMalloc((void**)&amin, sizeof(float) * linesN);
 	cudaMalloc((void**)&amax, sizeof(float) * linesN);
 	cudaMalloc((void**)&tempmat_alphas, sizeof(float) * linesN * max_len);
+	cudaMemset((void*)tempmat_alphas, 0, sizeof(float) * linesN * max_len);
 	cudaMalloc((void**)&voxelidvec, sizeof(VoxelID) * linesN * max_len);
 	cudaMalloc((void**)&dis, sizeof(float) * linesN * max_len);
 	cudaMalloc((void**)&alphavecsize, sizeof(float) * linesN);
-	cudaMalloc((void**)&mat_alphas, sizeof(float) * linesN * max_len);
-
-	cudaMemset((void*)linestat, 0, sizeof(bool) * linesN);
-	cudaMemset((void*)tempmat_alphas, 0, sizeof(float) * linesN * max_len);
-	cudaMemset((void*)mat_alphas, 0, sizeof(float) * linesN * max_len);
 	cudaMemset((void*)alphavecsize, 0, sizeof(int) * linesN);
-	calc_stat << <128, 256 >> > (lines, linesN, linestat);
-	alphaextrema << <128, 256 >> > (lines, linesN, ctdim, linestat, amin, amax, tempvec_x_4f, tempvec_y_4f);	
-	alphavecs << <128, 256 >> > (lines, linesN, ctdim, linestat, amin, amax, tempmat_alphas, mat_alphas, alphavecsize);	
-	dist_and_ID_in_voxel << <128, 256 >> > (lines, linesN, ctdim, linestat, voxelidvec,dis, mat_alphas, alphavecsize);
-	attu_inner_product << <128, 256 >> > (lines, linesN, ctdim, attenuation_matrix, linestat, voxelidvec, dis, alphavecsize);
+	cudaMalloc((void**)&mat_alphas, sizeof(float) * linesN * max_len);
+	cudaMemset((void*)mat_alphas, 0, sizeof(float) * linesN * max_len);
+	
+	
+
+
+	
+	
+	
+	calc_stat << <GRIDSIZEX, BLOCKSIZEX >> > (lines, linesN, linestat);
+	alphaextrema << <GRIDSIZEX, BLOCKSIZEX >> > (lines, linesN, ctdim, linestat, amin, amax, tempvec_x_4f, tempvec_y_4f);
+	alphavecs << <GRIDSIZEX, BLOCKSIZEX >> > (lines, linesN, ctdim, linestat, amin, amax, tempmat_alphas, mat_alphas, alphavecsize);
+	dist_and_ID_in_voxel << <GRIDSIZEX, BLOCKSIZEX >> > (lines, linesN, ctdim, linestat, voxelidvec,dis, mat_alphas, alphavecsize);
+	attu_inner_product << <GRIDSIZEX, BLOCKSIZEX >> > (lines, linesN, ctdim, attenuation_matrix, linestat, voxelidvec, dis, alphavecsize);
+	
+#ifdef DEBUG_STEP_RESULT
+	cudaMemcpy(host_line, lines, sizeof(CUDAlor) * linesN, cudaMemcpyDeviceToHost);
+	for (int i = 0; i < ((linesN < MAX_INFO_LINES) ? linesN : MAX_INFO_LINES); i++) {
+		thisline = host_line + i;
+		fprintf(fp,"END ID:%d,av=%f\n", i,  thisline->attcorrvalue);
+	}
+	free(host_line);
+	fclose(fp);
+#endif // DEBUG_STEP_RESULT
+
 	cudaFree(linestat);
 	cudaFree(tempvec_x_4f);
 	cudaFree(tempvec_y_4f);
@@ -61,22 +104,29 @@ int batchcorr_gpu(float* lines, int linesN, CTdims* ctdim, float* attenuation_ma
 }
 
 __global__ void attu_inner_product(float* lines, int nlines, CTdims* ctdim, float* attenuation_matrix, LineStatus* linestat, VoxelID* voxelidvec, float* distance, int* alphavecsize) {
-	for (int thread = threadIdx.x + blockIdx.x * blockDim.x; thread < nlines; thread += blockDim.x * gridDim.x) {
-		if (linestat[thread].done == false) {
-			CUDAlor* the_line = (CUDAlor*)lines + thread;
+	for (int line_index = threadIdx.x + blockIdx.x * blockDim.x; line_index < nlines; line_index += blockDim.x * gridDim.x) {
+#ifdef DEBUG_CALC_PROC	
+		if (line_index <= MAX_INFO_LINES) {
+			printf("Phase Inner Product:ID:%d:stat is %d\n", line_index, linestat[line_index].done);
+		}		
+#endif // DEBUG_CALC_PROC
+		if (linestat[line_index].done == false) {
+			CUDAlor* the_line = (CUDAlor*)lines + line_index;
 			int xdim = ctdim->xdim ;
 			int ydim = ctdim->ydim ;
 			int zdim = ctdim->zdim ;
 			int max_len = xdim + ydim + zdim + 3 + 2;
-			VoxelID* myVoxvec = voxelidvec + max_len * thread;
-			float* mydisvec = distance + max_len * thread;
-			double result = 0;
-			int totps = alphavecsize[thread] - 1;
+			VoxelID* myVoxvec = voxelidvec + max_len * line_index;
+			float* mydisvec = distance + max_len * line_index;
+			float result = 0;
+			int totps = alphavecsize[line_index] - 1;
 			int xx, yy, zz;
+			float attvoxvalue = 0;
 			for (int i = 0; i < totps; ++i) {
 				xx = myVoxvec[i].xid;
 				yy = myVoxvec[i].yid;
 				zz = myVoxvec[i].zid;
+				
 				if (xx >= xdim || xx < 0) {
 					result += 0;
 				}
@@ -87,21 +137,36 @@ __global__ void attu_inner_product(float* lines, int nlines, CTdims* ctdim, floa
 					result += 0;
 				}
 				else {
-					result += attenuation_matrix[zz * ydim * xdim + yy * xdim + xx] * mydisvec[i];
+					attvoxvalue = attenuation_matrix[zz * ydim * xdim + yy * xdim + xx];
+					result += attvoxvalue * mydisvec[i]; 
+#ifdef DEBUG_CALC_PROC
+					if (line_index <= MAX_INFO_LINES) {
+						printf("voxelzyx(%d,%d,%d)=%f\n", zz, yy, xx, attvoxvalue);
+					}
+#endif // DEBUG_CALC_PROC
 				}
 				
 			}
 			float cv = exp(-result);
 			the_line->attcorrvalue = cv;
-			
-			linestat[thread].done = true;
+#ifdef DEBUG_CALC_PROC
+			if (line_index <= MAX_INFO_LINES) {
+				printf("attvoxvalue=%f\n", cv);
+			}
+#endif // DEBUG_CALC_PROC
+			linestat[line_index].done = true;
 		}
 	}__syncthreads();
 }
 __global__ void calc_stat(float* lines, int nlines, LineStatus* linestat) {
-	for (int thread = threadIdx.x + blockIdx.x * blockDim.x; thread < nlines; thread += blockDim.x * gridDim.x) {
-		if (linestat[thread].done == false) {
-			CUDAlor* the_line = (CUDAlor*)lines + thread;
+	for (int line_index = threadIdx.x + blockIdx.x * blockDim.x; line_index < nlines; line_index += blockDim.x * gridDim.x) {
+#ifdef DEBUG_CALC_PROC	
+		if (line_index <= MAX_INFO_LINES) {
+			printf("Phase Calc Line Ttpe:ID:%d:stat is %d\n", line_index, linestat[line_index].done);
+		}
+#endif // DEBUG_CALC_PROC
+		if (linestat[line_index].done == false) {
+			CUDAlor* the_line = (CUDAlor*)lines + line_index;
 			float x0 = the_line->rx0;//lor线端点x0
 			float x1 = the_line->rx1;//lor线端点x1
 			float y0 = the_line->ry0;//lor线端点y0
@@ -111,45 +176,59 @@ __global__ void calc_stat(float* lines, int nlines, LineStatus* linestat) {
 			bool calc_x = true, calc_y = true, calc_z = true;
 			if (x0 - x1 == 0) {
 				calc_x = false;
-				linestat[thread].calcx = calc_x;
+				
 			}
+			linestat[line_index].calcx = calc_x;
 			if (y0 - y1 == 0)
 			{
 				calc_y = false;
-				linestat[thread].calcy = calc_y;
+				
 			}
+			linestat[line_index].calcy = calc_y;
 			if (z0 - z1 == 0)
 			{
 				calc_z = false;
-				linestat[thread].calcz = calc_z;
+				
 			}
+			linestat[line_index].calcz = calc_z;
 			if (!calc_x && !calc_y && !calc_z) {
 
 				the_line->attcorrvalue = 1.0;
-				linestat[thread].done = true;
+				linestat[line_index].done = true;
+				printf("ID:%d IS A POINT.\n", line_index);
 			}
+#ifdef DEBUG_CALC_PROC
+			if (line_index <= MAX_INFO_LINES) {
+			printf("calc_stat:ID:%d,xok:%d,yok:%d,zok:%d\n", line_index, calc_x, calc_y,calc_z);
+			}
+#endif // DEBUG_CALC_PROC
 		}
 	}__syncthreads();
 }
 __global__ void alphaextrema(float* lines, int nlines, CTdims* ctdim, LineStatus* linestat, float* amin, float* amax, float* tempvec_x_4, float* tempvec_y_4) {
-	for (int thread = threadIdx.x + blockIdx.x * blockDim.x; thread < nlines; thread += blockDim.x * gridDim.x) {
-		if (linestat[thread].done == false) {
-			CUDAlor* the_line = (CUDAlor*)lines + thread;
+	for (int line_index = threadIdx.x + blockIdx.x * blockDim.x; line_index < nlines; line_index += blockDim.x * gridDim.x) {
+#ifdef DEBUG_CALC_PROC	
+		if (line_index <= MAX_INFO_LINES) {
+			printf("Phase Find Alpha Extrema:ID:%d:stat is %d\n", line_index, linestat[line_index].done);
+		}
+#endif // DEBUG_CALC_PROC
+		if (linestat[line_index].done == false) {
+			CUDAlor* the_line = (CUDAlor*)lines + line_index;
 			float alphax0, alphay0, alphaz0;
 			float alphaxn, alphayn, alphazn;
 			float alphamin, alphamax;
-			float* amaxvec = tempvec_x_4 + thread * 4;//max=1+1X+1Y+1Z=4
+			float* amaxvec = tempvec_x_4 + line_index * 4;//max=1+1X+1Y+1Z=4
 			int amax_end = 0;
 			amaxvec[0] = 1.0f;
 			amax_end++;
-			float* aminvec = tempvec_y_4 + thread * 4;
+			float* aminvec = tempvec_y_4 + line_index * 4;
 			int amin_end = 0;
 			aminvec[0] = 0.0f;
 			amin_end++;
 			bool calc_x = true, calc_y = true, calc_z = true;
-			calc_x = linestat[thread].calcx;
-			calc_y = linestat[thread].calcy;
-			calc_z = linestat[thread].calcz;
+			calc_x = linestat[line_index].calcx;
+			calc_y = linestat[line_index].calcy;
+			calc_z = linestat[line_index].calcz;
 			float x0 = the_line->rx0;//lor线端点x0
 			float x1 = the_line->rx1;//lor线端点x1
 			float y0 = the_line->ry0;//lor线端点y0
@@ -165,35 +244,41 @@ __global__ void alphaextrema(float* lines, int nlines, CTdims* ctdim, LineStatus
 			if (calc_x) {
 				alphax0 = (ctx0 - x0) / (x1 - x0);
 				alphaxn = (ctxn - x0) / (x1 - x0);
-				amaxvec[amax_end] = fminf(alphax0, alphaxn);
+				amaxvec[amax_end] = fmaxf(alphax0, alphaxn);
 				amax_end++;
-				aminvec[amin_end] = fmaxf(alphax0, alphaxn);
+				aminvec[amin_end] = fminf(alphax0, alphaxn);
 				amin_end++;
 			}
 			if (calc_y) {
 				alphay0 = (cty0 - y0) / (y1 - y0);
 				alphayn = (ctyn - y0) / (y1 - y0);
-				amaxvec[amax_end] = fminf(alphay0, alphayn);
+				amaxvec[amax_end] = fmaxf(alphay0, alphayn);
 				amax_end++;
-				aminvec[amin_end] = fmaxf(alphay0, alphayn);
+				aminvec[amin_end] = fminf(alphay0, alphayn);
 				amin_end++;
 			}
 			if (calc_z) {
 				alphaz0 = (ctz0 - z0) / (z1 - z0);
 				alphazn = (ctzn - z0) / (z1 - z0);
-				amaxvec[amax_end] = fminf(alphaz0, alphazn);
+				amaxvec[amax_end] = fmaxf(alphaz0, alphazn);
 				amax_end++;
-				aminvec[amin_end] = fmaxf(alphaz0, alphazn);
+				aminvec[amin_end] = fminf(alphaz0, alphazn);
 				amin_end++;
 			}
 			alphamin = *thrust::max_element(thrust::seq,&aminvec[0], &aminvec[amin_end]);
 			alphamax = *thrust::min_element(thrust::seq, &amaxvec[0], &amaxvec[amax_end]);
-			amax[thread] = alphamax;
-			amin[thread] = alphamin;
+			amax[line_index] = alphamax;
+			amin[line_index] = alphamin;
+#ifdef DEBUG_CALC_PROC
+			if (line_index <= MAX_INFO_LINES) {
+			printf("ID:%d,amax:%f,amin:%f\n", line_index, amax[line_index], amin[line_index]);
+			}
+#endif // DEBUG_CALC_PROC
 			if (alphamax <= alphamin) {
 
 				the_line->attcorrvalue = 1.0;
-				linestat[thread].done = true;
+				linestat[line_index].done = true;
+				
 			}
 		}
 	}__syncthreads();
@@ -201,9 +286,14 @@ __global__ void alphaextrema(float* lines, int nlines, CTdims* ctdim, LineStatus
 
 __global__ void alphavecs(float* lines, int nlines, CTdims* ctdim, LineStatus* linestat, float* amin, float* amax, float* tempmat_alphas, float* mat_alphas, int* alphavecsize)
 {
-	for (int thread = threadIdx.x + blockIdx.x * blockDim.x; thread < nlines; thread += blockDim.x * gridDim.x) {
-		if (linestat[thread].done == false) {
-			CUDAlor* the_line = (CUDAlor*)lines + thread;
+	for (int line_index = threadIdx.x + blockIdx.x * blockDim.x; line_index < nlines; line_index += blockDim.x * gridDim.x) {
+#ifdef DEBUG_CALC_PROC	
+		if (line_index <= MAX_INFO_LINES) {
+			printf("Phase Find Alpha Vecs:ID:%d:stat is %d\n", line_index, linestat[line_index].done);
+		}
+#endif // DEBUG_CALC_PROC
+		if (linestat[line_index].done == false) {
+			CUDAlor* the_line = (CUDAlor*)lines + line_index;
 			int imin, jmin, kmin;
 			int imax, jmax, kmax;
 			float x0 = the_line->rx0;//lor线端点x0
@@ -212,8 +302,8 @@ __global__ void alphavecs(float* lines, int nlines, CTdims* ctdim, LineStatus* l
 			float y1 = the_line->ry1;//lor线端点y1
 			float z0 = the_line->rz0;//lor线端点z0
 			float z1 = the_line->rz1;//lor线端点z1
-			float alphamax = amax[thread];
-			float alphamin = amin[thread];
+			float alphamax = amax[line_index];
+			float alphamin = amin[line_index];
 			float ctx0 = ctdim->x0;
 			float ctxn = ctdim->x0 + ctdim->xdim * ctdim->xspacing;
 			float cty0 = ctdim->y0;
@@ -227,9 +317,9 @@ __global__ void alphavecs(float* lines, int nlines, CTdims* ctdim, LineStatus* l
 			int ctny = ctdim->ydim;
 			int ctnz = ctdim->zdim;
 			bool calc_x = true, calc_y = true, calc_z = true;
-			calc_x = linestat[thread].calcx;
-			calc_y = linestat[thread].calcy;
-			calc_z = linestat[thread].calcz;
+			calc_x = linestat[line_index].calcx;
+			calc_y = linestat[line_index].calcy;
+			calc_z = linestat[line_index].calcz;
 			if ((x1 - x0) >= 0) {
 				imin = ctnx - floor((ctxn - alphamin * (x1 - x0) - x0) / xspace);
 				imax = floor((x0 + alphamax * (x1 - x0) - ctx0) / xspace);
@@ -254,10 +344,10 @@ __global__ void alphavecs(float* lines, int nlines, CTdims* ctdim, LineStatus* l
 				kmin = ctnz - floor((ctzn - alphamax * (z1 - z0) - z0) / zspace);
 				kmax = floor((z0 + alphamin * (z1 - z0) - ctz0) / zspace);
 			}
-			float* ax = tempmat_alphas + thread * (ctnx + ctny + ctnz + 3 + 2);
-			float* ay = tempmat_alphas + thread * (ctnx + ctny + ctnz + 3 + 2) + ctnx + 1;
-			float* az = tempmat_alphas + thread * (ctnx + ctny + ctnz + 3 + 2) + ctnx + ctny + 2;
-			float* result_begin_ptr = mat_alphas + thread * (ctnx + ctny + ctnz + 3 + 2);
+			float* ax = tempmat_alphas + line_index * (ctnx + ctny + ctnz + 3 + 2);
+			float* ay = tempmat_alphas + line_index * (ctnx + ctny + ctnz + 3 + 2) + ctnx + 1;
+			float* az = tempmat_alphas + line_index * (ctnx + ctny + ctnz + 3 + 2) + ctnx + ctny + 2;
+			float* result_begin_ptr = mat_alphas + line_index * (ctnx + ctny + ctnz + 3 + 2);
 			if (calc_x) {
 				if (x1 - x0 >= 0) {
 					for (int i = 0; i < imax - imin + 1; i++) {
@@ -330,17 +420,33 @@ __global__ void alphavecs(float* lines, int nlines, CTdims* ctdim, LineStatus* l
 			thrust::sort(thrust::seq, result_begin_ptr, result_begin_ptr + totalsize);
 			
 			float* end_ptr = thrust::unique(thrust::seq, result_begin_ptr, result_begin_ptr + totalsize);
-			alphavecsize[thread] = end_ptr - result_begin_ptr;
-			
+			int veclen= end_ptr - result_begin_ptr;
+			alphavecsize[line_index] = veclen;
+#ifdef DEBUG_CALC_PROC
+			if (line_index <= MAX_INFO_LINES) {
+				printf("alphavecs=\n");
+				for (int i = 0; i < veclen; i++) {
+					printf("%f ", *(result_begin_ptr + i));
+				}
+				printf("\n");
+			}
+#endif // DEBUG_CALC_PROC
+
 		}
 	}__syncthreads();
 }
 __global__ void dist_and_ID_in_voxel(float* lines, int nlines, CTdims* ctdim, LineStatus* linestat, VoxelID* voxelidvec, float* distance,float* mat_alphas, int* alphavecsize) {
-	for (int thread = threadIdx.x + blockIdx.x * blockDim.x; thread < nlines; thread += blockDim.x * gridDim.x) {
-		if (linestat[thread].done == false) {
-			int ctxplanes = ctdim->xdim + 1;
-			int ctyplanes = ctdim->ydim + 1;
-			int ctzplanes = ctdim->zdim + 1;
+	for (int line_index = threadIdx.x + blockIdx.x * blockDim.x; line_index < nlines; line_index += blockDim.x * gridDim.x) {
+#ifdef DEBUG_CALC_PROC	
+		if (line_index <= MAX_INFO_LINES) {
+			printf("Phase Calc Distance And VoxelIDs:ID:%d:stat is %d\n", line_index, linestat[line_index].done);
+		}
+#endif // DEBUG_CALC_PROC
+		if (linestat[line_index].done == false) {
+			int xdim = ctdim->xdim;
+			int ydim = ctdim->ydim;
+			int zdim = ctdim->zdim;
+			int max_len = xdim + ydim + zdim + 3 + 2;
 			float ctx0 = ctdim->x0;
 			float ctxn = ctdim->x0 + ctdim->xdim * ctdim->xspacing;
 			float cty0 = ctdim->y0;
@@ -350,12 +456,11 @@ __global__ void dist_and_ID_in_voxel(float* lines, int nlines, CTdims* ctdim, Li
 			float xspace = ctdim->xspacing;
 			float yspace = ctdim->yspacing;
 			float zspace = ctdim->zspacing;
-			int max_len = ctxplanes + ctyplanes + ctzplanes + 2;
-			float* l_ptr = distance + max_len * thread;
-			int vec_len = alphavecsize[thread];
-			float* alphavec_ptr = mat_alphas + max_len * thread;
-			VoxelID* myvoxels = voxelidvec + max_len * thread;
-			CUDAlor* the_line = (CUDAlor*)lines + thread;
+			float* l_ptr = distance + max_len * line_index;
+			int vec_len = alphavecsize[line_index];
+			float* alphavec_ptr = mat_alphas + max_len * line_index;
+			VoxelID* myvoxels = voxelidvec + max_len * line_index;
+			CUDAlor* the_line = (CUDAlor*)lines + line_index;
 			float x0 = the_line->rx0;//lor线端点x0
 			float x1 = the_line->rx1;//lor线端点x1
 			float y0 = the_line->ry0;//lor线端点y0
@@ -371,9 +476,14 @@ __global__ void dist_and_ID_in_voxel(float* lines, int nlines, CTdims* ctdim, Li
 				mx=floor(((x1 - x0) * mean + (x0 - ctx0)) / xspace);
 				my= floor(((y1 - y0) * mean + (y0 - cty0)) / yspace);
 				mz= floor(((z1 - z0) * mean + (z0 - ctz0)) / zspace);
-				myvoxels->xid = mx;
-				myvoxels->yid = my;
-				myvoxels-> zid = mz;
+				myvoxels[i].xid = mx;
+				myvoxels[i].yid = my;
+				myvoxels[i].zid = mz;
+#ifdef DEBUG_CALC_PROC
+				if (line_index <= MAX_INFO_LINES) {
+				printf("myvoxelxyz:%d=(%d,%d,%d)\n", i, myvoxels[i].xid, myvoxels[i].yid, myvoxels[i].zid);
+				}
+#endif // DEBUG_CALC_PROC
 			}
 		}
 	}__syncthreads();

@@ -119,7 +119,7 @@ typedef struct
 }LineStatus;
 typedef struct
 {
-	bool xid, yid, zid;
+	int xid, yid, zid;
 }VoxelID;
 
 int batchcorr_gpu(float* lines, int linesN, CTdims* ctdim, float* attenuation_matrix);
@@ -152,7 +152,8 @@ __global__ void Fnorm(float *dev_image, float *back_image, float *dev_norm_image
 
 
 //__global__ void attenucorryz(float* lines, int linesN, CTdims* ctdim, float* attenuation_matrix);
-__global__ void genacmatrix(float* attenuation_matrix, CTdims* ctdim, short* ct_matrix);
+int genacmatrix(float* attenuation_matrix, CTdims* ctdim, short* ct_matrix);
+__global__ void genacvalue(float* attenuation_matrix, CTdims* ctdim, short* ct_matrix);
 int GetLines(char* filename);
 void PrintConfig();
 void CalcNormImage(float *norm_image, int numoflinesForNorm, char* filename);

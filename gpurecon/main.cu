@@ -186,10 +186,12 @@ int main(int argc, char** argv)
 	totalDeviceMemoryUsed += (double)(2*sizeof(float) * Nx * Ny * Nz);
 	printf("(MEMORY): allocating memory to store temp attenuation matrix, device memory used: %lf MB\n", totalDeviceMemoryUsed / 1048576.0);
 
-
-	genacmatrix<<<1,1>>>(device_attenuation_matrix,ctdim,nullptr);
+	printf("(INFO): converting ct matrix values into attenuation values.\n");
+	genacmatrix(device_attenuation_matrix,ctdim,nullptr);
+	
+	printf("(INFO): done.\n");
 	if (DebugFile > 0) {
-		SaveImageToFile(device_attenuation_matrix, "ATT_IMAGE", Nx* Ny* Nz);
+		SaveImageToFile(device_attenuation_matrix, "ATT_IMAGE.bin", Nx* Ny* Nz);
 	}
 	cudaMemcpy(host_ctdim, ctdim, sizeof(CTdims), cudaMemcpyDeviceToHost);
 	//new lines end
