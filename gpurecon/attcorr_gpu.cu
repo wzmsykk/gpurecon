@@ -7,17 +7,17 @@
 #define GRIDSIZEX 128
 #define BLOCKSIZEX 128
 
-//#define DEBUG_CALC_PROC
-//#define DEBUG_STEP_RESULT
+#define DEBUG_CALC_PROC
+#define DEBUG_STEP_RESULT
 
-#define MAX_INFO_LINES 1
-int batchcorr_gpu(float* lines, int linesN, CTdims* ctdim, float* attenuation_matrix) {
+#define MAX_INFO_LINES 3
+int batchcorr_gpu(CUDAlor* lines, int linesN, CTdims* ctdim, float* attenuation_matrix, void* a_big_dev_buffer) {
 
 #ifdef DEBUG_STEP_RESULT
 	printf("linesN=%d\n", linesN);
 #endif // DEBUG_STEP_RESULT
 
-	
+	char* curr_buffer_ptr = (char*) a_big_dev_buffer;
 	LineStatus* linestat;
 	float* amin, * amax;
 	float* tempvec_x_4f, *tempvec_y_4f, *tempvec_z_4f;
@@ -50,33 +50,57 @@ int batchcorr_gpu(float* lines, int linesN, CTdims* ctdim, float* attenuation_ma
 		fprintf(fp, "FIRST ID:%d\nx0 %f\nx1 %f\ny0 %f\ny1 %f\nz0 %f\nz1 %f\nav=%f\n", i, thisline->rx0, thisline->rx1, thisline->ry0, thisline->ry1, thisline->rz0, thisline->rz1, thisline->attcorrvalue);
 	}
 #endif // DEBUG_STEP_RESULT
-
+	size_t onelinebuffersize = 0;
 	cudaMalloc((void**)&linestat, sizeof(LineStatus) * linesN);
+	//linestat = (LineStatus*)curr_buffer_ptr;
+	//curr_buffer_ptr += sizeof(LineStatus) * linesN;
 	cudaMemset((void*)linestat, 0, sizeof(LineStatus) * linesN);
-
+	onelinebuffersize += sizeof(LineStatus);
 	cudaMalloc((void**)&tempvec_x_4f, sizeof(float) * linesN*4);
-
+	//tempvec_x_4f = (float*)curr_buffer_ptr;
+	//curr_buffer_ptr += sizeof(float) * linesN;
+	onelinebuffersize += sizeof(float);
 	cudaMalloc((void**)&tempvec_y_4f, sizeof(float) * linesN*4);
-
+	//tempvec_y_4f = (float*)curr_buffer_ptr;
+	//curr_buffer_ptr += sizeof(float) * linesN;
+	onelinebuffersize += sizeof(float);
 	cudaMalloc((void**)&tempvec_z_4f, sizeof(float) * linesN*4);
-
+	//tempvec_z_4f = (float*)curr_buffer_ptr;
+	//curr_buffer_ptr += sizeof(float) * linesN;
+	onelinebuffersize += sizeof(float);
 	cudaMalloc((void**)&amin, sizeof(float) * linesN);
+	//amin = (float*)curr_buffer_ptr;
+	//curr_buffer_ptr += sizeof(float) * linesN;
+	onelinebuffersize += sizeof(float);
 	cudaMalloc((void**)&amax, sizeof(float) * linesN);
-
+	//amax = (float*)curr_buffer_ptr;
+	//curr_buffer_ptr += sizeof(float) * linesN;
+	onelinebuffersize += sizeof(float);
 	cudaMalloc((void**)&tempmat_alphas, sizeof(float) * linesN * max_len);
+	//tempmat_alphas = (float*)curr_buffer_ptr;
+	//curr_buffer_ptr += sizeof(float) * linesN * max_len;
 	cudaMemset((void*)tempmat_alphas, 0, sizeof(float) * linesN * max_len);
-
+	onelinebuffersize += sizeof(float)* max_len;
 	cudaMalloc((void**)&voxelidvec, sizeof(VoxelID) * linesN * max_len);
+	//voxelidvec = (VoxelID*)curr_buffer_ptr;
+	//curr_buffer_ptr += sizeof(VoxelID) * linesN * max_len;
+	onelinebuffersize += sizeof(VoxelID) * max_len;
 	cudaMalloc((void**)&dis, sizeof(float) * linesN * max_len);
-
-	cudaMalloc((void**)&alphavecsize, sizeof(float) * linesN);
+	//dis = (float*)curr_buffer_ptr;
+	//curr_buffer_ptr += sizeof(float) * linesN * max_len;
+	onelinebuffersize += sizeof(float) * max_len;
+	cudaMalloc((void**)&alphavecsize, sizeof(int) * linesN);
+	//alphavecsize = (int*)curr_buffer_ptr;
+	//curr_buffer_ptr += sizeof(int) * linesN;
 	cudaMemset((void*)alphavecsize, 0, sizeof(int) * linesN);
-
+	onelinebuffersize += sizeof(int);
 	cudaMalloc((void**)&mat_alphas, sizeof(float) * linesN * max_len);
+	//mat_alphas = (float*)curr_buffer_ptr;
+	//curr_buffer_ptr += sizeof(float) * linesN * max_len;
 	cudaMemset((void*)mat_alphas, 0, sizeof(float) * linesN * max_len);
-	
-	
-
+	onelinebuffersize += sizeof(float) * max_len;
+	//printf("one line buffer needed=%d",onelinebuffersize);
+	cudaDeviceSynchronize();
 
 	
 	
@@ -86,7 +110,7 @@ int batchcorr_gpu(float* lines, int linesN, CTdims* ctdim, float* attenuation_ma
 	alphavecs << <GRIDSIZEX, BLOCKSIZEX >> > (lines, linesN, ctdim, linestat, amin, amax, tempmat_alphas, mat_alphas, alphavecsize);
 	dist_and_ID_in_voxel << <GRIDSIZEX, BLOCKSIZEX >> > (lines, linesN, ctdim, linestat, voxelidvec,dis, mat_alphas, alphavecsize);
 	attu_inner_product << <GRIDSIZEX, BLOCKSIZEX >> > (lines, linesN, ctdim, attenuation_matrix, linestat, voxelidvec, dis, alphavecsize);
-	cudaDeviceSynchronize();
+
 #ifdef DEBUG_STEP_RESULT
 	cudaMemcpy((void*)host_line, (void*)lines, sizeof(CUDAlor) * linesN, cudaMemcpyDeviceToHost);
 	for (int i = 0; i < ((linesN < MAX_INFO_LINES) ? linesN : MAX_INFO_LINES); i++) {
@@ -108,10 +132,11 @@ int batchcorr_gpu(float* lines, int linesN, CTdims* ctdim, float* attenuation_ma
 	cudaFree(dis);
 	cudaFree(alphavecsize);
 	cudaFree(mat_alphas);
+	cudaDeviceSynchronize();
 	return 0;
 }
 
-__global__ void attu_inner_product(float* lines, int nlines, CTdims* ctdim, float* attenuation_matrix, LineStatus* linestat, VoxelID* voxelidvec, float* distance, int* alphavecsize) {
+__global__ void attu_inner_product(CUDAlor* lines, int nlines, CTdims* ctdim, float* attenuation_matrix, LineStatus* linestat, VoxelID* voxelidvec, float* distance, int* alphavecsize) {
 	for (int line_index = threadIdx.x + blockIdx.x * blockDim.x; line_index < nlines; line_index += blockDim.x * gridDim.x) {
 #ifdef DEBUG_CALC_PROC	
 		if (line_index < MAX_INFO_LINES) {
@@ -177,7 +202,7 @@ __global__ void attu_inner_product(float* lines, int nlines, CTdims* ctdim, floa
 		}
 	}__syncthreads();
 }
-__global__ void calc_stat(float* lines, int nlines, LineStatus* linestat) {
+__global__ void calc_stat(CUDAlor* lines, int nlines, LineStatus* linestat) {
 	for (int line_index = threadIdx.x + blockIdx.x * blockDim.x; line_index < nlines; line_index += blockDim.x * gridDim.x) {
 #ifdef DEBUG_CALC_PROC	
 		if (line_index < MAX_INFO_LINES) {
@@ -216,15 +241,18 @@ __global__ void calc_stat(float* lines, int nlines, LineStatus* linestat) {
 				linestat[line_index].done = true;
 				printf("ID:%d IS A POINT.\n", line_index);
 			}
+			linestat[line_index].calcx = calc_x;
+			linestat[line_index].calcy = calc_y;
+			linestat[line_index].calcz = calc_z;
 #ifdef DEBUG_CALC_PROC
 			if (line_index < MAX_INFO_LINES) {
-			printf("calc_stat:ID:%d,xok:%d,yok:%d,zok:%d\n", line_index, calc_x, calc_y,calc_z);
+			printf("calc_stat:ID:%d,xok:%d,yok:%d,zok:%d\n", line_index, linestat[line_index].calcx, linestat[line_index].calcy, linestat[line_index].calcz);
 			}
 #endif // DEBUG_CALC_PROC
 		}
 	}__syncthreads();
 }
-__global__ void alphaextrema(float* lines, int nlines, CTdims* ctdim, LineStatus* linestat, float* amin, float* amax, float* tempvec_x_4, float* tempvec_y_4) {
+__global__ void alphaextrema(CUDAlor* lines, int nlines, CTdims* ctdim, LineStatus* linestat, float* amin, float* amax, float* tempvec_x_4, float* tempvec_y_4) {
 	for (int line_index = threadIdx.x + blockIdx.x * blockDim.x; line_index < nlines; line_index += blockDim.x * gridDim.x) {
 #ifdef DEBUG_CALC_PROC	
 		if (line_index < MAX_INFO_LINES) {
@@ -303,7 +331,7 @@ __global__ void alphaextrema(float* lines, int nlines, CTdims* ctdim, LineStatus
 	}__syncthreads();
 }
 
-__global__ void alphavecs(float* lines, int nlines, CTdims* ctdim, LineStatus* linestat, float* amin, float* amax, float* tempmat_alphas, float* mat_alphas, int* alphavecsize)
+__global__ void alphavecs(CUDAlor* lines, int nlines, CTdims* ctdim, LineStatus* linestat, float* amin, float* amax, float* tempmat_alphas, float* mat_alphas, int* alphavecsize)
 {
 	for (int line_index = threadIdx.x + blockIdx.x * blockDim.x; line_index < nlines; line_index += blockDim.x * gridDim.x) {
 #ifdef DEBUG_CALC_PROC	
@@ -454,7 +482,7 @@ __global__ void alphavecs(float* lines, int nlines, CTdims* ctdim, LineStatus* l
 		}
 	}__syncthreads();
 }
-__global__ void dist_and_ID_in_voxel(float* lines, int nlines, CTdims* ctdim, LineStatus* linestat, VoxelID* voxelidvec, float* distance,float* mat_alphas, int* alphavecsize) {
+__global__ void dist_and_ID_in_voxel(CUDAlor* lines, int nlines, CTdims* ctdim, LineStatus* linestat, VoxelID* voxelidvec, float* distance,float* mat_alphas, int* alphavecsize) {
 	for (int line_index = threadIdx.x + blockIdx.x * blockDim.x; line_index < nlines; line_index += blockDim.x * gridDim.x) {
 #ifdef DEBUG_CALC_PROC	
 		if (line_index < MAX_INFO_LINES) {

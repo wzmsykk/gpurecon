@@ -1,5 +1,5 @@
 #include"headerfiles.h"
-__global__ void convertoloryz(short* dev_lor_data_array, int* dev_indexxmax, float* lines, int nlines, int noffset)
+__global__ void convertoloryz(short* dev_lor_data_array, int* dev_indexxmax, CUDAlor* lines, int nlines, int noffset)
 {
 	for (int i = threadIdx.x + blockIdx.x * blockDim.x; i < nlines; i += blockDim.x * gridDim.x) {
 

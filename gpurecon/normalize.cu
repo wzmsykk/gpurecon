@@ -97,8 +97,8 @@ void CalcNormImage(float *norm_image, int numoflinesForNorm, char* filename)
 
 
 	int nlines = 128*128;
-	float * lines;
-	cudaMalloc ( ( void**)&lines, 7 * nlines * sizeof(float) );	// 7 elements for the lines structure
+	CUDAlor* lines;
+	cudaMalloc ( ( void**)&lines, nlines * sizeof(CUDAlor) );	// 7 elements for the lines structure
 
 
 	int totalnumoflinesxz = sizen[1];

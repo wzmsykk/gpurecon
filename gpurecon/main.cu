@@ -5,7 +5,8 @@ int main(int argc, char** argv)
 //  to run:
 //	nvcc -arch=sm_20 presort.cu 
 //	./a.out will print usage
-
+	cudaError_t err = cudaDeviceSetLimit(cudaLimitMallocHeapSize, 1048576ULL * 512);
+	//EXTREME BIG HEAP
 	if(argc <=1)
 	{
 		printf("usage: [./a.out] [imageLORfilename] [normalizationLORfilename] [number of iteration] [batch size]\n");
@@ -167,7 +168,7 @@ int main(int argc, char** argv)
 
 	int nlines = 128*128; // can adjust this one to make recon faster (need more memory)
 	nlines=batchsize;//in case of total events < default batchsize which caused blank image, change the batchsize to be less than total lines. 
-	float * lines;
+	CUDAlor* lines;
 	cudaMalloc ( ( void**)&lines, sizeof(CUDAlor) * nlines );	// 11 elements for the lines structure
 
 	totalDeviceMemoryUsed += (double)(sizeof(CUDAlor) * nlines );
@@ -194,6 +195,11 @@ int main(int argc, char** argv)
 		SaveImageToFile(device_attenuation_matrix, "ATT_IMAGE.bin", Nx* Ny* Nz);
 	}
 	cudaMemcpy(host_ctdim, ctdim, sizeof(CTdims), cudaMemcpyDeviceToHost);
+
+	void* a_big_dev_buffer=nullptr;
+	//cudaMalloc((void**)&a_big_dev_buffer, 40960 * sizeof(char)* nlines);
+	totalDeviceMemoryUsed += (double)(40960 * sizeof(char) * nlines)*0;
+	printf("(MEMORY): allocating memory to provide a device buffer, device memory used: %lf MB\n", totalDeviceMemoryUsed / 1048576.0);
 	//new lines end
 
 	int totalnumoflinesxz = sizen[1];
@@ -223,15 +229,17 @@ int main(int argc, char** argv)
 	////end
 	int dumplength;
 	int maxxzbatch, maxyzbatch;
+	
 	for (int iter=0;iter<iterationCount;iter++)
 	{
 		//TO DO 
 		maxxzbatch = ceil(totalnumoflinesxz / (float)nlines);
-		//maxxzbatch = 1;
+		maxxzbatch = 1;
 		for (i= 0; i< maxxzbatch; i++)
 		{
 			
 			int realnlines = nlines;
+			//realnlines = 3;
 			if ((i+1) * nlines > totalnumoflinesxz) {
 				realnlines = totalnumoflinesxz - i * nlines;
 				printf("(DEBUG) LAST BATCH XZ LOR SIZE=%d\n",realnlines);
@@ -253,7 +261,7 @@ int main(int argc, char** argv)
 			}
 			checkCudaErrors(cudaDeviceSynchronize());
 			//dump end
-			batchcorr_gpu(lines, realnlines, ctdim, device_attenuation_matrix);
+			batchcorr_gpu(lines, realnlines, ctdim, device_attenuation_matrix, a_big_dev_buffer);
 			Forwardprojxz<<<256,512>>>(dev_image, lines, realnlines);
 			Backprojxz_ac <<<256, 512 >>> (dev_image, dev_back_image, lines, realnlines, 0);//changed 			
 																							//Backprojxz<<<128,128>>>(dev_image,dev_back_image,lines,realnlines,0);
@@ -279,7 +287,7 @@ int main(int argc, char** argv)
 		cudaMemcpy(dev_back_image, dev_tempback_image, Nx*Ny*Nz *sizeof(float ),cudaMemcpyDeviceToDevice);
 
 		maxyzbatch = ceil(totalnumoflinesyz / (float)nlines);
-		//maxyzbatch = 1;
+		maxyzbatch = 1;
 		for (i = 0; i < maxyzbatch; i++)
 		//for (i = 0; i < totalnumoflinesyz / nlines ; i++)
 		{
@@ -298,7 +306,7 @@ int main(int argc, char** argv)
 			//batchcorr(host_lines, realnlines, host_ctdim, device_attenuation_matrix);//new line for attenuation correction//new line for attenuation correction
 			//cudaMemcpy(lines, host_lines, realnlines * sizeof(CUDAlor), cudaMemcpyHostToDevice);
 			//free(host_lines);
-			batchcorr_gpu(lines, realnlines, ctdim, device_attenuation_matrix);
+			batchcorr_gpu(lines, realnlines, ctdim, device_attenuation_matrix, a_big_dev_buffer);
 			
 			Forwardprojyz<<<256,512>>>(dev_image, lines, realnlines);
 			Backprojyz_ac<<<256,512>>>(dev_image,dev_back_image,lines,realnlines,0);

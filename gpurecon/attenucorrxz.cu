@@ -103,18 +103,18 @@ int batchcorr(float* lines, int linesN, CTdims* ctdim, float* attenuation_matrix
 		CUDAlor* the_line = (CUDAlor*)lines + i;
 #ifdef DEBUG
 		if (i == 0) {
-			attenucorrxyz((float*)the_line, ctdim, attenuation_matrix, 2);
+			attenucorrxyz((CUDAlor*)the_line, ctdim, attenuation_matrix, 2);
 		}
 		else {
 #endif // DEBUG
-			attenucorrxyz((float*)the_line, ctdim, attenuation_matrix, 0);
+			attenucorrxyz((CUDAlor*)the_line, ctdim, attenuation_matrix, 0);
 #ifdef DEBUG
 		}
 #endif // DEBUG	
 	}
 	return 0;
 }
-int attenucorrxyz(float* lines, CTdims* ctdim, float* attenuation_matrix,int dbglv) {
+int attenucorrxyz(CUDAlor* lines, CTdims* ctdim, float* attenuation_matrix,int dbglv) {
 
 
 #ifdef DEBUG

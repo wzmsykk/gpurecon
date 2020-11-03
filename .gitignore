@@ -340,3 +340,6 @@ ASALocalRun/
 healthchecksdb
 /gpurecon/ATT_IMAGE
 /gpurecon/ATT_IMAGE.bin
+/gpurecon/ATT_IMAGE.bin
+/gpurecon/image*.bin
+/gpurecon/*img.bin

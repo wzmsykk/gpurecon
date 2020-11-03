@@ -124,29 +124,29 @@ typedef struct
 	int xid, yid, zid;
 }VoxelID;
 
-int batchcorr_gpu(float* lines, int linesN, CTdims* ctdim, float* attenuation_matrix);
-__global__ void calc_stat(float* lines, int nlines, LineStatus* linestat);
-__global__ void alphaextrema(float* lines, int nlines, CTdims* ctdim, LineStatus* linestat, float* amin, float* amax, float* tempvec_x_4, float* tempvec_y_4);
-__global__ void alphavecs(float* lines, int nlines, CTdims* ctdim, LineStatus* linestat, float* amin, float* amax, float* tempmat_alphas, float* mat_alphas, int* alphavecsize);
-__global__ void dist_and_ID_in_voxel(float* lines, int nlines, CTdims* ctdim, LineStatus* linestat, VoxelID* voxelidvec, float* distance, float* mat_alphas, int* alphavecsize);
-__global__ void attu_inner_product(float* lines, int nlines, CTdims* ctdim, float* attenuation_matrix, LineStatus* linestat, VoxelID* voxelidvec, float* distance, int* alphavecsize);
+int batchcorr_gpu(CUDAlor* lines, int linesN, CTdims* ctdim, float* attenuation_matrix, void* a_big_dev_buffer);
+__global__ void calc_stat(CUDAlor* lines, int nlines, LineStatus* linestat);
+__global__ void alphaextrema(CUDAlor* lines, int nlines, CTdims* ctdim, LineStatus* linestat, float* amin, float* amax, float* tempvec_x_4, float* tempvec_y_4);
+__global__ void alphavecs(CUDAlor* lines, int nlines, CTdims* ctdim, LineStatus* linestat, float* amin, float* amax, float* tempmat_alphas, float* mat_alphas, int* alphavecsize);
+__global__ void dist_and_ID_in_voxel(CUDAlor* lines, int nlines, CTdims* ctdim, LineStatus* linestat, VoxelID* voxelidvec, float* distance, float* mat_alphas, int* alphavecsize);
+__global__ void attu_inner_product(CUDAlor* lines, int nlines, CTdims* ctdim, float* attenuation_matrix, LineStatus* linestat, VoxelID* voxelidvec, float* distance, int* alphavecsize);
 
-int attenucorrxyz(float* lines, CTdims* ctdim, float* attenuation_matrix, int dbglv);
-int batchcorr(float* lines, int linesN, CTdims* ctdim, float* attenuation_matrix);
+int attenucorrxyz(CUDAlor* lines, CTdims* ctdim, float* attenuation_matrix, int dbglv);
+int batchcorr(CUDAlor* lines, int linesN, CTdims* ctdim, float* attenuation_matrix);
 
 
 
 
 __global__ void convertolor(short *dev_lor_data_array, float *dx_array,float *dy_array,float *dz_array, int nlines);
 void partlor(float *hx_array,float *hy_array,float *hz_array, int totalnumoflines, int *indexxmax, int *indexymax, int *indexzmax, int *sizen);
-__global__ void convertoloryz(short *dev_lor_data_array, int *dev_indexxmax,float *lines, int nlines, int noffset);
-__global__ void convertolorxz(short *dev_lor_data_array, int *dev_indexymax,float *lines, int nlines, int noffset);
-__global__ void Forwardprojyz( float *dev_image, float *lines, int linesN );
-__global__ void Forwardprojxz( float *dev_image, float *lines, int linesN );
-__global__ void Backprojxz( float *dev_image, float *back_image, float *lines, int linesN ,int backProjOnly );
-__global__ void Backprojyz( float *dev_image, float *back_image, float *lines, int linesN ,int backProjOnly );
-__global__ void Backprojxz_ac(float* dev_image, float* back_image, float* lines, int linesN, int backProjOnly);
-__global__ void Backprojyz_ac(float* dev_image, float* back_image, float* lines, int linesN, int backProjOnly);
+__global__ void convertoloryz(short *dev_lor_data_array, int *dev_indexxmax, CUDAlor*lines, int nlines, int noffset);
+__global__ void convertolorxz(short *dev_lor_data_array, int *dev_indexymax, CUDAlor*lines, int nlines, int noffset);
+__global__ void Forwardprojyz( float *dev_image, CUDAlor* lines, int linesN );
+__global__ void Forwardprojxz( float *dev_image, CUDAlor* lines, int linesN );
+__global__ void Backprojxz( float *dev_image, float *back_image, CUDAlor* lines, int linesN ,int backProjOnly );
+__global__ void Backprojyz( float *dev_image, float *back_image, CUDAlor* lines, int linesN ,int backProjOnly );
+__global__ void Backprojxz_ac(float* dev_image, float* back_image, CUDAlor* lines, int linesN, int backProjOnly);
+__global__ void Backprojyz_ac(float* dev_image, float* back_image, CUDAlor* lines, int linesN, int backProjOnly);
 __global__ void Frotate(float *back_image, float *back_imagetemp);
 __global__ void Brotate(float* back_imagetemp, float* back_image);
 __global__ void Rrotate(float* imageYZX, float* imageZYX);

@@ -1,5 +1,5 @@
 #include"headerfiles.h"
-__global__ void Backprojxz_ac(float* dev_image, float* back_image, float* lines, int linesN, int backProjOnly)
+__global__ void Backprojxz_ac(float* dev_image, float* back_image, CUDAlor* lines, int linesN, int backProjOnly)
 {
 	//current slice
 	__shared__ float slice[Nx * Nz];

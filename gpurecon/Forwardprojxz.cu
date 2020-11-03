@@ -1,5 +1,5 @@
 #include"headerfiles.h"
-__global__ void Forwardprojxz( float *dev_image, float *lines, int linesN )
+__global__ void Forwardprojxz( float *dev_image, CUDAlor *lines, int linesN )
 {
 	//current slice
 	//—ÿy∑ΩœÚ«–∆¨
