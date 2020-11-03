@@ -55,5 +55,6 @@ __global__ void genacvalue(float* attenuation_matrix, CTdims* ctdim, short* ct_m
 		else {
 			attenuation_matrix[mz * ctdim->ydim * ctdim->xdim + my * ctdim->xdim + mx] = 0;
 		}//YZX		
+
 	}__syncthreads();
 }

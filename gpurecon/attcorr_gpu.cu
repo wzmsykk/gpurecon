@@ -8,9 +8,9 @@
 #define BLOCKSIZEX 128
 
 //#define DEBUG_CALC_PROC
-#define DEBUG_STEP_RESULT
+//#define DEBUG_STEP_RESULT
 
-#define MAX_INFO_LINES 3
+#define MAX_INFO_LINES 1
 int batchcorr_gpu(float* lines, int linesN, CTdims* ctdim, float* attenuation_matrix) {
 
 #ifdef DEBUG_STEP_RESULT
@@ -41,9 +41,9 @@ int batchcorr_gpu(float* lines, int linesN, CTdims* ctdim, float* attenuation_ma
 
 	//DEBUG
 #ifdef DEBUG_STEP_RESULT
-	FILE* fp = fopen("dumpattvalue.log", "w");
+	FILE* fp = fopen("dumpattvalue.log", "a");
 	CUDAlor* host_line = (CUDAlor*)malloc(sizeof(CUDAlor) * linesN);
-	cudaMemcpy(host_line, lines, sizeof(CUDAlor) * linesN, cudaMemcpyDeviceToHost);
+	cudaMemcpy((void*)host_line, (void*)lines, sizeof(CUDAlor) * linesN, cudaMemcpyDeviceToHost);
 	CUDAlor* thisline = host_line;
 	for (int i = 0; i < ((linesN< MAX_INFO_LINES)?linesN: MAX_INFO_LINES); i++) {
 		thisline = host_line + i;
@@ -53,17 +53,25 @@ int batchcorr_gpu(float* lines, int linesN, CTdims* ctdim, float* attenuation_ma
 
 	cudaMalloc((void**)&linestat, sizeof(LineStatus) * linesN);
 	cudaMemset((void*)linestat, 0, sizeof(LineStatus) * linesN);
+
 	cudaMalloc((void**)&tempvec_x_4f, sizeof(float) * linesN*4);
+
 	cudaMalloc((void**)&tempvec_y_4f, sizeof(float) * linesN*4);
+
 	cudaMalloc((void**)&tempvec_z_4f, sizeof(float) * linesN*4);
+
 	cudaMalloc((void**)&amin, sizeof(float) * linesN);
 	cudaMalloc((void**)&amax, sizeof(float) * linesN);
+
 	cudaMalloc((void**)&tempmat_alphas, sizeof(float) * linesN * max_len);
 	cudaMemset((void*)tempmat_alphas, 0, sizeof(float) * linesN * max_len);
+
 	cudaMalloc((void**)&voxelidvec, sizeof(VoxelID) * linesN * max_len);
 	cudaMalloc((void**)&dis, sizeof(float) * linesN * max_len);
+
 	cudaMalloc((void**)&alphavecsize, sizeof(float) * linesN);
 	cudaMemset((void*)alphavecsize, 0, sizeof(int) * linesN);
+
 	cudaMalloc((void**)&mat_alphas, sizeof(float) * linesN * max_len);
 	cudaMemset((void*)mat_alphas, 0, sizeof(float) * linesN * max_len);
 	
@@ -78,9 +86,9 @@ int batchcorr_gpu(float* lines, int linesN, CTdims* ctdim, float* attenuation_ma
 	alphavecs << <GRIDSIZEX, BLOCKSIZEX >> > (lines, linesN, ctdim, linestat, amin, amax, tempmat_alphas, mat_alphas, alphavecsize);
 	dist_and_ID_in_voxel << <GRIDSIZEX, BLOCKSIZEX >> > (lines, linesN, ctdim, linestat, voxelidvec,dis, mat_alphas, alphavecsize);
 	attu_inner_product << <GRIDSIZEX, BLOCKSIZEX >> > (lines, linesN, ctdim, attenuation_matrix, linestat, voxelidvec, dis, alphavecsize);
-	
+	cudaDeviceSynchronize();
 #ifdef DEBUG_STEP_RESULT
-	cudaMemcpy(host_line, lines, sizeof(CUDAlor) * linesN, cudaMemcpyDeviceToHost);
+	cudaMemcpy((void*)host_line, (void*)lines, sizeof(CUDAlor) * linesN, cudaMemcpyDeviceToHost);
 	for (int i = 0; i < ((linesN < MAX_INFO_LINES) ? linesN : MAX_INFO_LINES); i++) {
 		thisline = host_line + i;
 		fprintf(fp,"END ID:%d,av=%f\n", i,  thisline->attcorrvalue);
@@ -106,7 +114,7 @@ int batchcorr_gpu(float* lines, int linesN, CTdims* ctdim, float* attenuation_ma
 __global__ void attu_inner_product(float* lines, int nlines, CTdims* ctdim, float* attenuation_matrix, LineStatus* linestat, VoxelID* voxelidvec, float* distance, int* alphavecsize) {
 	for (int line_index = threadIdx.x + blockIdx.x * blockDim.x; line_index < nlines; line_index += blockDim.x * gridDim.x) {
 #ifdef DEBUG_CALC_PROC	
-		if (line_index <= MAX_INFO_LINES) {
+		if (line_index < MAX_INFO_LINES) {
 			printf("Phase Inner Product:ID:%d:stat is %d\n", line_index, linestat[line_index].done);
 		}		
 #endif // DEBUG_CALC_PROC
@@ -122,6 +130,11 @@ __global__ void attu_inner_product(float* lines, int nlines, CTdims* ctdim, floa
 			int totps = alphavecsize[line_index] - 1;
 			int xx, yy, zz;
 			float attvoxvalue = 0;
+#ifdef DEBUG_CALC_PROC
+			if (line_index < MAX_INFO_LINES) {
+			printf("totalpts=%d\n", totps);
+			}
+#endif // DEBUG_CALC_PROC
 			for (int i = 0; i < totps; ++i) {
 				xx = myVoxvec[i].xid;
 				yy = myVoxvec[i].yid;
@@ -140,17 +153,23 @@ __global__ void attu_inner_product(float* lines, int nlines, CTdims* ctdim, floa
 					attvoxvalue = attenuation_matrix[zz * ydim * xdim + yy * xdim + xx];
 					result += attvoxvalue * mydisvec[i]; 
 #ifdef DEBUG_CALC_PROC
-					if (line_index <= MAX_INFO_LINES) {
-						printf("voxelzyx(%d,%d,%d)=%f\n", zz, yy, xx, attvoxvalue);
+					if (line_index < MAX_INFO_LINES) {
+						printf("voxelzyx(%d,%d,%d)=%f,dis=%f\n", zz, yy, xx, attvoxvalue, mydisvec[i]);
+						printf("now result=%f\n", result);
 					}
 #endif // DEBUG_CALC_PROC
 				}
 				
 			}
-			float cv = exp(-result);
+#ifdef DEBUG_CALC_PROC
+			if (line_index < MAX_INFO_LINES) {
+				printf("result=%f\n", result);
+			}
+#endif // DEBUG_CALC_PROC
+			float cv = expf(-result);
 			the_line->attcorrvalue = cv;
 #ifdef DEBUG_CALC_PROC
-			if (line_index <= MAX_INFO_LINES) {
+			if (line_index < MAX_INFO_LINES) {
 				printf("attvoxvalue=%f\n", cv);
 			}
 #endif // DEBUG_CALC_PROC
@@ -161,7 +180,7 @@ __global__ void attu_inner_product(float* lines, int nlines, CTdims* ctdim, floa
 __global__ void calc_stat(float* lines, int nlines, LineStatus* linestat) {
 	for (int line_index = threadIdx.x + blockIdx.x * blockDim.x; line_index < nlines; line_index += blockDim.x * gridDim.x) {
 #ifdef DEBUG_CALC_PROC	
-		if (line_index <= MAX_INFO_LINES) {
+		if (line_index < MAX_INFO_LINES) {
 			printf("Phase Calc Line Ttpe:ID:%d:stat is %d\n", line_index, linestat[line_index].done);
 		}
 #endif // DEBUG_CALC_PROC
@@ -198,7 +217,7 @@ __global__ void calc_stat(float* lines, int nlines, LineStatus* linestat) {
 				printf("ID:%d IS A POINT.\n", line_index);
 			}
 #ifdef DEBUG_CALC_PROC
-			if (line_index <= MAX_INFO_LINES) {
+			if (line_index < MAX_INFO_LINES) {
 			printf("calc_stat:ID:%d,xok:%d,yok:%d,zok:%d\n", line_index, calc_x, calc_y,calc_z);
 			}
 #endif // DEBUG_CALC_PROC
@@ -208,7 +227,7 @@ __global__ void calc_stat(float* lines, int nlines, LineStatus* linestat) {
 __global__ void alphaextrema(float* lines, int nlines, CTdims* ctdim, LineStatus* linestat, float* amin, float* amax, float* tempvec_x_4, float* tempvec_y_4) {
 	for (int line_index = threadIdx.x + blockIdx.x * blockDim.x; line_index < nlines; line_index += blockDim.x * gridDim.x) {
 #ifdef DEBUG_CALC_PROC	
-		if (line_index <= MAX_INFO_LINES) {
+		if (line_index < MAX_INFO_LINES) {
 			printf("Phase Find Alpha Extrema:ID:%d:stat is %d\n", line_index, linestat[line_index].done);
 		}
 #endif // DEBUG_CALC_PROC
@@ -270,7 +289,7 @@ __global__ void alphaextrema(float* lines, int nlines, CTdims* ctdim, LineStatus
 			amax[line_index] = alphamax;
 			amin[line_index] = alphamin;
 #ifdef DEBUG_CALC_PROC
-			if (line_index <= MAX_INFO_LINES) {
+			if (line_index < MAX_INFO_LINES) {
 			printf("ID:%d,amax:%f,amin:%f\n", line_index, amax[line_index], amin[line_index]);
 			}
 #endif // DEBUG_CALC_PROC
@@ -288,7 +307,7 @@ __global__ void alphavecs(float* lines, int nlines, CTdims* ctdim, LineStatus* l
 {
 	for (int line_index = threadIdx.x + blockIdx.x * blockDim.x; line_index < nlines; line_index += blockDim.x * gridDim.x) {
 #ifdef DEBUG_CALC_PROC	
-		if (line_index <= MAX_INFO_LINES) {
+		if (line_index < MAX_INFO_LINES) {
 			printf("Phase Find Alpha Vecs:ID:%d:stat is %d\n", line_index, linestat[line_index].done);
 		}
 #endif // DEBUG_CALC_PROC
@@ -423,7 +442,7 @@ __global__ void alphavecs(float* lines, int nlines, CTdims* ctdim, LineStatus* l
 			int veclen= end_ptr - result_begin_ptr;
 			alphavecsize[line_index] = veclen;
 #ifdef DEBUG_CALC_PROC
-			if (line_index <= MAX_INFO_LINES) {
+			if (line_index < MAX_INFO_LINES) {
 				printf("alphavecs=\n");
 				for (int i = 0; i < veclen; i++) {
 					printf("%f ", *(result_begin_ptr + i));
@@ -438,7 +457,7 @@ __global__ void alphavecs(float* lines, int nlines, CTdims* ctdim, LineStatus* l
 __global__ void dist_and_ID_in_voxel(float* lines, int nlines, CTdims* ctdim, LineStatus* linestat, VoxelID* voxelidvec, float* distance,float* mat_alphas, int* alphavecsize) {
 	for (int line_index = threadIdx.x + blockIdx.x * blockDim.x; line_index < nlines; line_index += blockDim.x * gridDim.x) {
 #ifdef DEBUG_CALC_PROC	
-		if (line_index <= MAX_INFO_LINES) {
+		if (line_index < MAX_INFO_LINES) {
 			printf("Phase Calc Distance And VoxelIDs:ID:%d:stat is %d\n", line_index, linestat[line_index].done);
 		}
 #endif // DEBUG_CALC_PROC
@@ -480,7 +499,7 @@ __global__ void dist_and_ID_in_voxel(float* lines, int nlines, CTdims* ctdim, Li
 				myvoxels[i].yid = my;
 				myvoxels[i].zid = mz;
 #ifdef DEBUG_CALC_PROC
-				if (line_index <= MAX_INFO_LINES) {
+				if (line_index < MAX_INFO_LINES) {
 				printf("myvoxelxyz:%d=(%d,%d,%d)\n", i, myvoxels[i].xid, myvoxels[i].yid, myvoxels[i].zid);
 				}
 #endif // DEBUG_CALC_PROC

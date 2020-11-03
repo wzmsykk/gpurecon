@@ -2,6 +2,8 @@
 __global__ void convertolorxz(short* dev_lor_data_array, int* dev_indexymax, float* lines, int nlines, int noffset)
 {
 	for (int i = threadIdx.x + blockIdx.x * blockDim.x; i < nlines; i += blockDim.x * gridDim.x) {
+		
+
 
 		short rsectorID1, rsectorID2, moduleID1, moduleID2, crystalID1, crystalID2;
 		rsectorID1 = *(dev_lor_data_array + 6 * dev_indexymax[(i + noffset)] + 0);
@@ -13,6 +15,8 @@ __global__ void convertolorxz(short* dev_lor_data_array, int* dev_indexymax, flo
 
 		Lorposition lor = CalcLorPositionFull(rsectorID1, rsectorID2, moduleID1, moduleID2, crystalID1, crystalID2);
 		CUDAlor* this_line = (CUDAlor*)lines + i;
+
+		
 
 		this_line->x0 = lor.x0 / pixel_size + (Nx - 1) / 2.0f;
 		this_line->x1 = lor.x1 / pixel_size + (Nx - 1) / 2.0f;
@@ -31,6 +35,7 @@ __global__ void convertolorxz(short* dev_lor_data_array, int* dev_indexymax, flo
 		this_line->rz1 = lor.z1;
 		this_line->value = 0.0;
 		this_line->attcorrvalue = 1.0;
+
 		/************************************************
 		lines的结构
 		lines[x][0]=lor.x0所处像素位置

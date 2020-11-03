@@ -19,7 +19,7 @@ int main(int argc, char** argv)
 
 	int totalnumoflines,i;
 	int shouldNormalize=0;
-	int batchsize=256*128;
+	int batchsize=128*128;
 	double totalDeviceMemoryUsed=0;
 	float * norm_image = (float *)malloc(sizeof(float)*Nx*Ny*Nz);
 	float * dev_norm_image;
@@ -214,10 +214,21 @@ int main(int argc, char** argv)
 
 	printf("total iteration: #%d\n",iterationCount);
 
+
+	//////debug output
+	FILE* fp = fopen("dump.log", "w");
+	int dumpmaxline = 3;
+	CUDAlor* host_dumplines = (CUDAlor*)malloc(sizeof(CUDAlor) * nlines);
+	CUDAlor* this_line;
+	////end
+	int dumplength;
+	int maxxzbatch, maxyzbatch;
 	for (int iter=0;iter<iterationCount;iter++)
 	{
 		//TO DO 
-		for (i= 0; i< ceil(totalnumoflinesxz / (float)nlines); i++)
+		maxxzbatch = ceil(totalnumoflinesxz / (float)nlines);
+		//maxxzbatch = 1;
+		for (i= 0; i< maxxzbatch; i++)
 		{
 			
 			int realnlines = nlines;
@@ -230,11 +241,18 @@ int main(int argc, char** argv)
 			
 
 			convertolorxz<<<256,512>>>(dev_lor_data_array,dev_indexymax,lines,realnlines,noffset);//将lor_data中lor根据indexxy存入lines
-			//float* host_lines=(float*)malloc(realnlines*sizeof(CUDAlor));
-			//cudaMemcpy(host_lines, lines, realnlines * sizeof(CUDAlor), cudaMemcpyDeviceToHost);
-			//batchcorr(host_lines, realnlines, host_ctdim, device_attenuation_matrix);//new line for attenuation correction//new line for attenuation correction
-			//cudaMemcpy(lines, host_lines, realnlines * sizeof(CUDAlor), cudaMemcpyHostToDevice);
-			//free(host_lines);
+			//dump 
+			dumplength = (dumpmaxline < realnlines) ? dumpmaxline : realnlines;
+			fprintf(fp, "DUMP %d lines for run %d\n", dumplength, i);
+			cudaMemcpy((void* )host_dumplines, (void*)lines, sizeof(CUDAlor) * dumplength, cudaMemcpyDeviceToHost);
+			this_line = (CUDAlor*)host_dumplines;
+			for (int j = 0; j <dumplength ; j++) {
+				this_line = (CUDAlor*)host_dumplines + j;
+				fprintf(fp, "lines:%d=\n", j);
+				fprintf(fp, "x0=%f,y0=%f,z0=%f\n", this_line->rx0, this_line->ry0, this_line->rz0);
+			}
+			checkCudaErrors(cudaDeviceSynchronize());
+			//dump end
 			batchcorr_gpu(lines, realnlines, ctdim, device_attenuation_matrix);
 			Forwardprojxz<<<256,512>>>(dev_image, lines, realnlines);
 			Backprojxz_ac <<<256, 512 >>> (dev_image, dev_back_image, lines, realnlines, 0);//changed 			
@@ -260,7 +278,9 @@ int main(int argc, char** argv)
 		}
 		cudaMemcpy(dev_back_image, dev_tempback_image, Nx*Ny*Nz *sizeof(float ),cudaMemcpyDeviceToDevice);
 
-		for (i = 0; i < ceil(totalnumoflinesyz / (float)nlines); i++)
+		maxyzbatch = ceil(totalnumoflinesyz / (float)nlines);
+		//maxyzbatch = 1;
+		for (i = 0; i < maxyzbatch; i++)
 		//for (i = 0; i < totalnumoflinesyz / nlines ; i++)
 		{
 			
@@ -279,7 +299,6 @@ int main(int argc, char** argv)
 			//cudaMemcpy(lines, host_lines, realnlines * sizeof(CUDAlor), cudaMemcpyHostToDevice);
 			//free(host_lines);
 			batchcorr_gpu(lines, realnlines, ctdim, device_attenuation_matrix);
-
 			
 			Forwardprojyz<<<256,512>>>(dev_image, lines, realnlines);
 			Backprojyz_ac<<<256,512>>>(dev_image,dev_back_image,lines,realnlines,0);

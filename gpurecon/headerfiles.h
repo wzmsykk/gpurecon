@@ -12,6 +12,8 @@
 #include<stdio.h>
 #include<stdlib.h>
 #include<math.h>
+#include <helper_cuda.h>
+#include <helper_functions.h>
 
 #define Nx 400
 #define Ny 400

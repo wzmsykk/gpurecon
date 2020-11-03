@@ -25,4 +25,7 @@
   <ItemGroup>
     <ClInclude Include="headerfiles.h" />
   </ItemGroup>
+  <ItemGroup>
+    <None Include="ClassDiagram.cd" />
+  </ItemGroup>
 </Project>
