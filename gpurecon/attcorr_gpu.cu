@@ -4,14 +4,14 @@
 #include <thrust/execution_policy.h>
 #include <thrust/unique.h>
 
-#define GRIDSIZEX 128
-#define BLOCKSIZEX 128
+#define GRIDSIZEX 256
+#define BLOCKSIZEX 512
 
-#define DEBUG_CALC_PROC
-#define DEBUG_STEP_RESULT
+//#define DEBUG_CALC_PROC
+//#define DEBUG_STEP_RESULT
 
 #define MAX_INFO_LINES 3
-int batchcorr_gpu(CUDAlor* lines, int linesN, CTdims* ctdim, float* attenuation_matrix, void* a_big_dev_buffer) {
+int batchcorr_gpu(CUDAlor* lines, int linesN, CTdims* ctdim, float* const attenuation_matrix, void* a_big_dev_buffer) {
 
 #ifdef DEBUG_STEP_RESULT
 	printf("linesN=%d\n", linesN);
@@ -43,7 +43,7 @@ int batchcorr_gpu(CUDAlor* lines, int linesN, CTdims* ctdim, float* attenuation_
 #ifdef DEBUG_STEP_RESULT
 	FILE* fp = fopen("dumpattvalue.log", "a");
 	CUDAlor* host_line = (CUDAlor*)malloc(sizeof(CUDAlor) * linesN);
-	cudaMemcpy((void*)host_line, (void*)lines, sizeof(CUDAlor) * linesN, cudaMemcpyDeviceToHost);
+	cudaMemcpy(host_line, lines, sizeof(CUDAlor) * linesN, cudaMemcpyDeviceToHost);
 	CUDAlor* thisline = host_line;
 	for (int i = 0; i < ((linesN< MAX_INFO_LINES)?linesN: MAX_INFO_LINES); i++) {
 		thisline = host_line + i;
@@ -110,9 +110,9 @@ int batchcorr_gpu(CUDAlor* lines, int linesN, CTdims* ctdim, float* attenuation_
 	alphavecs << <GRIDSIZEX, BLOCKSIZEX >> > (lines, linesN, ctdim, linestat, amin, amax, tempmat_alphas, mat_alphas, alphavecsize);
 	dist_and_ID_in_voxel << <GRIDSIZEX, BLOCKSIZEX >> > (lines, linesN, ctdim, linestat, voxelidvec,dis, mat_alphas, alphavecsize);
 	attu_inner_product << <GRIDSIZEX, BLOCKSIZEX >> > (lines, linesN, ctdim, attenuation_matrix, linestat, voxelidvec, dis, alphavecsize);
-
+	cudaDeviceSynchronize();
 #ifdef DEBUG_STEP_RESULT
-	cudaMemcpy((void*)host_line, (void*)lines, sizeof(CUDAlor) * linesN, cudaMemcpyDeviceToHost);
+	cudaMemcpy(host_line, lines, sizeof(CUDAlor) * linesN, cudaMemcpyDeviceToHost);
 	for (int i = 0; i < ((linesN < MAX_INFO_LINES) ? linesN : MAX_INFO_LINES); i++) {
 		thisline = host_line + i;
 		fprintf(fp,"END ID:%d,av=%f\n", i,  thisline->attcorrvalue);
@@ -155,9 +155,12 @@ __global__ void attu_inner_product(CUDAlor* lines, int nlines, CTdims* ctdim, fl
 			int totps = alphavecsize[line_index] - 1;
 			int xx, yy, zz;
 			float attvoxvalue = 0;
+			int myindex;
 #ifdef DEBUG_CALC_PROC
 			if (line_index < MAX_INFO_LINES) {
 			printf("totalpts=%d\n", totps);
+			printf("xdim=%d,ydim=%d,zdim=%d\n", xdim, ydim, zdim);
+			printf("maxindex=%d\n", xdim * ydim * zdim);
 			}
 #endif // DEBUG_CALC_PROC
 			for (int i = 0; i < totps; ++i) {
@@ -168,14 +171,21 @@ __global__ void attu_inner_product(CUDAlor* lines, int nlines, CTdims* ctdim, fl
 				if (xx >= xdim || xx < 0) {
 					result += 0;
 				}
-				else if (yy >= xdim || yy < 0) {
+				else if (yy >= ydim || yy < 0) {
 					result += 0;
 				}
-				else if (zz >= xdim || zz < 0) {
+				else if (zz >= zdim || zz < 0) {
 					result += 0;
 				}
 				else {
-					attvoxvalue = attenuation_matrix[zz * ydim * xdim + yy * xdim + xx];
+					myindex = zz * ydim * xdim + yy * xdim + xx;
+#ifdef DEBUG_CALC_PROC
+					if (line_index < MAX_INFO_LINES) {
+						printf("voxelzyx(%d,%d,%d)", zz, yy, xx);
+						printf("voxel %d index=%d\n", i, myindex);
+					}
+#endif // DEBUG_CALC_PROC
+					attvoxvalue = attenuation_matrix[myindex];
 					result += attvoxvalue * mydisvec[i]; 
 #ifdef DEBUG_CALC_PROC
 					if (line_index < MAX_INFO_LINES) {
@@ -464,15 +474,42 @@ __global__ void alphavecs(CUDAlor* lines, int nlines, CTdims* ctdim, LineStatus*
 			result_begin_ptr[currend] = alphamax;
 			totalsize += 1;
 			currend += 1;
-			thrust::sort(thrust::seq, result_begin_ptr, result_begin_ptr + totalsize);
 			
-			float* end_ptr = thrust::unique(thrust::seq, result_begin_ptr, result_begin_ptr + totalsize);
-			int veclen= end_ptr - result_begin_ptr;
-			alphavecsize[line_index] = veclen;
+			//thrust::sort(thrust::seq, result_begin_ptr, result_begin_ptr + totalsize);//need low level sort
+
+
+			//My sort
+#ifdef DEBUG_CALC_PROC
+			if (line_index < MAX_INFO_LINES) {
+				printf("Before Sort Array Alha\n");
+				for (int i = 0; i < totalsize; ++i) {
+					printf("%f ", *(result_begin_ptr + i));
+				}
+				printf("\n");
+			}
+#endif // DEBUG_CALC_PROC
+			int minidx;
+			float temp;
+			for (int i=0; i < totalsize - 1;++i) {
+				minidx = i;
+				for (int j = i + 1; j < totalsize; ++j) {
+					if (result_begin_ptr[j] < result_begin_ptr[minidx]) {
+						minidx = j;
+					}
+				}
+				temp = result_begin_ptr[i];
+				result_begin_ptr[i] = result_begin_ptr[minidx];
+				result_begin_ptr[minidx] = temp;
+			}
+
+			
+			//float* end_ptr = thrust::unique(thrust::seq, result_begin_ptr, result_begin_ptr + totalsize);
+			//int veclen= end_ptr - result_begin_ptr;
+			alphavecsize[line_index] = totalsize;
 #ifdef DEBUG_CALC_PROC
 			if (line_index < MAX_INFO_LINES) {
 				printf("alphavecs=\n");
-				for (int i = 0; i < veclen; i++) {
+				for (int i = 0; i < totalsize; i++) {
 					printf("%f ", *(result_begin_ptr + i));
 				}
 				printf("\n");

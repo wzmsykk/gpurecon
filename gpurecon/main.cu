@@ -5,7 +5,7 @@ int main(int argc, char** argv)
 //  to run:
 //	nvcc -arch=sm_20 presort.cu 
 //	./a.out will print usage
-	cudaError_t err = cudaDeviceSetLimit(cudaLimitMallocHeapSize, 1048576ULL * 512);
+	cudaError_t err = cudaDeviceSetLimit(cudaLimitMallocHeapSize, 1048576ULL * 1024);
 	//EXTREME BIG HEAP
 	if(argc <=1)
 	{
@@ -234,7 +234,7 @@ int main(int argc, char** argv)
 	{
 		//TO DO 
 		maxxzbatch = ceil(totalnumoflinesxz / (float)nlines);
-		maxxzbatch = 1;
+		//maxxzbatch = 1;
 		for (i= 0; i< maxxzbatch; i++)
 		{
 			
@@ -287,7 +287,7 @@ int main(int argc, char** argv)
 		cudaMemcpy(dev_back_image, dev_tempback_image, Nx*Ny*Nz *sizeof(float ),cudaMemcpyDeviceToDevice);
 
 		maxyzbatch = ceil(totalnumoflinesyz / (float)nlines);
-		maxyzbatch = 1;
+		//maxyzbatch = 1;
 		for (i = 0; i < maxyzbatch; i++)
 		//for (i = 0; i < totalnumoflinesyz / nlines ; i++)
 		{
