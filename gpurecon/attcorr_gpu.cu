@@ -4,13 +4,13 @@
 #include <thrust/execution_policy.h>
 #include <thrust/unique.h>
 
-#define GRIDSIZEX 256
-#define BLOCKSIZEX 512
+#define GRIDSIZEX 128
+#define BLOCKSIZEX 256
 
 //#define DEBUG_CALC_PROC
 //#define DEBUG_STEP_RESULT
 
-#define MAX_INFO_LINES 3
+#define MAX_INFO_LINES 1
 int batchcorr_gpu(CUDAlor* lines, int linesN, CTdims* ctdim, float* const attenuation_matrix, void* a_big_dev_buffer) {
 
 #ifdef DEBUG_STEP_RESULT
@@ -186,7 +186,7 @@ __global__ void attu_inner_product(CUDAlor* lines, int nlines, CTdims* ctdim, fl
 					}
 #endif // DEBUG_CALC_PROC
 					attvoxvalue = attenuation_matrix[myindex];
-					result += attvoxvalue * mydisvec[i]; 
+					result += attvoxvalue * mydisvec[i]; //dis是实际长度in mm
 #ifdef DEBUG_CALC_PROC
 					if (line_index < MAX_INFO_LINES) {
 						printf("voxelzyx(%d,%d,%d)=%f,dis=%f\n", zz, yy, xx, attvoxvalue, mydisvec[i]);

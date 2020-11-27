@@ -5,7 +5,7 @@ int main(int argc, char** argv)
 //  to run:
 //	nvcc -arch=sm_20 presort.cu 
 //	./a.out will print usage
-	cudaError_t err = cudaDeviceSetLimit(cudaLimitMallocHeapSize, 1048576ULL * 1024);
+	cudaError_t err = cudaDeviceSetLimit(cudaLimitMallocHeapSize, 1048576ULL * 256);
 	//EXTREME BIG HEAP
 	if(argc <=1)
 	{
@@ -15,7 +15,7 @@ int main(int argc, char** argv)
 		printf("then image is not normalized: may have ring gaps: \n");
 		exit(1);
 	}
-
+	bool use_attu_corr = true;
 	PrintConfig();
 
 	int totalnumoflines,i;
@@ -180,7 +180,6 @@ int main(int argc, char** argv)
 	cudaMalloc((void**)&ctdim, sizeof(CTdims));
 	host_ctdim = (CTdims*)malloc(sizeof(CTdims));
 	cudaMemset(ctdim, 0, sizeof(CTdims));
-
 	cudaMalloc((void**)&device_attenuation_matrix, Nx* Ny* Nz * sizeof(float));
 	cudaMemset(device_attenuation_matrix,0, Nx * Ny * Nz * sizeof(float));
 
@@ -206,12 +205,6 @@ int main(int argc, char** argv)
 	int totalnumoflinesyz = sizen[0];
 
 	printf("\nlor memory are prepared now running OSEM (running batches of %d lors) \n\n", nlines);
-	if(DebugInfo>0)
-	{
-		printf("***********************************************************************************\n");
-		printf("Doing forward and backward projection for plane xz with lor hitting xz plane (lor-xz)\n");	
-		printf("***********************************************************************************\n");
-	}
 
 	cudaEvent_t start,stop;
 	cudaEventCreate(&start);
@@ -232,6 +225,14 @@ int main(int argc, char** argv)
 	
 	for (int iter=0;iter<iterationCount;iter++)
 	{
+		printf("now iteration: #%d\n", iter);
+		if (DebugInfo > 0)
+		{
+			printf("***********************************************************************************\n");
+			printf("Doing forward and backward projection for plane xz with lor hitting xz plane (lor-xz)\n");
+			printf("***********************************************************************************\n");
+		}
+
 		//TO DO 
 		maxxzbatch = ceil(totalnumoflinesxz / (float)nlines);
 		//maxxzbatch = 1;
@@ -261,10 +262,16 @@ int main(int argc, char** argv)
 			}
 			checkCudaErrors(cudaDeviceSynchronize());
 			//dump end
-			batchcorr_gpu(lines, realnlines, ctdim, device_attenuation_matrix, a_big_dev_buffer);
-			Forwardprojxz<<<256,512>>>(dev_image, lines, realnlines);
-			Backprojxz_ac <<<256, 512 >>> (dev_image, dev_back_image, lines, realnlines, 0);//changed 			
-																							//Backprojxz<<<128,128>>>(dev_image,dev_back_image,lines,realnlines,0);
+			if (use_attu_corr) {
+				printf("Doing attu corr \n");
+				batchcorr_gpu(lines, realnlines, ctdim, device_attenuation_matrix, a_big_dev_buffer);
+				Forwardprojxz << <256, 512 >> > (dev_image, lines, realnlines);
+				Backprojxz_ac << <256, 512 >> > (dev_image, dev_back_image, lines, realnlines, 0);//changed 			
+			}					//Backprojxz<<<128,128>>>(dev_image,dev_back_image,lines,realnlines,0);
+			else {
+				Forwardprojxz << <256, 512 >> > (dev_image, lines, realnlines);
+				Backprojxz << <256, 512 >> > (dev_image, dev_back_image, lines, realnlines, 0);//changed
+			}
 		} // if using OSEM, move the iteration to #OSEM
 	
 		if(DebugInfo>0)
@@ -306,10 +313,16 @@ int main(int argc, char** argv)
 			//batchcorr(host_lines, realnlines, host_ctdim, device_attenuation_matrix);//new line for attenuation correction//new line for attenuation correction
 			//cudaMemcpy(lines, host_lines, realnlines * sizeof(CUDAlor), cudaMemcpyHostToDevice);
 			//free(host_lines);
-			batchcorr_gpu(lines, realnlines, ctdim, device_attenuation_matrix, a_big_dev_buffer);
+			if (use_attu_corr) {
+				batchcorr_gpu(lines, realnlines, ctdim, device_attenuation_matrix, a_big_dev_buffer);
+				Forwardprojyz << <256, 512 >> > (dev_image, lines, realnlines);
+				Backprojyz_ac << <256, 512 >> > (dev_image, dev_back_image, lines, realnlines, 0);
+			}
+			else {
+				Forwardprojyz << <256, 512 >> > (dev_image, lines, realnlines);
+				Backprojyz << <256, 512 >> > (dev_image, dev_back_image, lines, realnlines, 0);
+			}
 			
-			Forwardprojyz<<<256,512>>>(dev_image, lines, realnlines);
-			Backprojyz_ac<<<256,512>>>(dev_image,dev_back_image,lines,realnlines,0);
 			
 		} // if using OSEM, move the iteration to #OSEM
 
