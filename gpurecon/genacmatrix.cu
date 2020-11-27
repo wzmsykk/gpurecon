@@ -46,11 +46,11 @@ __global__ void genacvalue(float* attenuation_matrix, CTdims* ctdim, short* ct_m
 		//根据CT 的HU值查找衰减
 		//现在水模高2cm
 		//半径5cm
-		float rx = (mx - (ctdim->xdim - 1) / 2.0f) * ctdim->xspacing;
-		float ry = (my - (ctdim->ydim - 1) / 2.0f) * ctdim->yspacing;
-		float rz = (mz - (ctdim->zdim - 1) / 2.0f) * ctdim->zspacing;
+		float rx = ((float)mx + 0.5) * ctdim->xspacing + ctdim->x0;
+		float ry = ((float)my + 0.5) * ctdim->yspacing + ctdim->y0;
+		float rz = ((float)mz + 0.5) * ctdim->zspacing + ctdim->z0;
 		if ((rx * rx + ry * ry) < 2500.0f && rz <10.0f && rz>-10.0f) {
-			attenuation_matrix[mz* ctdim->ydim * ctdim->xdim +my* ctdim->xdim +mx] = 9.598E-03*pixel_size ;
+			attenuation_matrix[mz* ctdim->ydim * ctdim->xdim +my* ctdim->xdim +mx] = 9.598E-03;
 		}
 		else {
 			attenuation_matrix[mz * ctdim->ydim * ctdim->xdim + my * ctdim->xdim + mx] = 0;

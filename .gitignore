@@ -339,7 +339,4 @@ ASALocalRun/
 # BeatPulse healthcheck temp database
 healthchecksdb
 /gpurecon/ATT_IMAGE
-/gpurecon/ATT_IMAGE.bin
-/gpurecon/ATT_IMAGE.bin
-/gpurecon/image*.bin
-/gpurecon/*img.bin
+/gpurecon/*.bin
