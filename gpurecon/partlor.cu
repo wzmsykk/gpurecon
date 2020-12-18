@@ -26,7 +26,7 @@ void partlor(float *hx_array,float *hy_array,float *hz_array, int totalnumofline
 			  make_zip_iterator(make_tuple(dx_vec.end(),dy_vec.end(),dz_vec.end())),
 			  compareid.begin(),
 			  maxx_tuple());	
-	//maxx_tuple() 若x偏导数的绝对值>y或z的偏导数的绝对值,返回1. (x,y,z)三元组
+	//maxx_tuple() 对(x,y,z)三元组,若x偏导数的绝对值>y或z的偏导数的绝对值,返回1. 
 	IndexIterator dxindices_end = thrust::copy_if(indices_begin,indices_end,compareid.begin(),indices.begin(),thrust::identity<int>());
 	std::cout<<"found "<< (dxindices_end - indices.begin()) << " x max values\n";
 	int size1=(dxindices_end - indices.begin());

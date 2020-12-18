@@ -136,6 +136,15 @@ int batchcorr_gpu(CUDAlor* lines, int linesN, CTdims* ctdim, float* const attenu
 	return 0;
 }
 
+__global__ void extract_attenu_value_to_list_with_offset(CUDAlor* lines, int nlines, float* extracted_value_list ,int list_offset) {
+	for (int line_index = threadIdx.x + blockIdx.x * blockDim.x; line_index < nlines; line_index += blockDim.x * gridDim.x) {
+		CUDAlor* the_line = (CUDAlor*)lines + line_index;
+		extracted_value_list[line_index+list_offset] = the_line->attcorrvalue;
+	}__syncthreads();
+}
+
+
+
 __global__ void attu_inner_product(CUDAlor* lines, int nlines, CTdims* ctdim, float* attenuation_matrix, LineStatus* linestat, VoxelID* voxelidvec, float* distance, int* alphavecsize) {
 	for (int line_index = threadIdx.x + blockIdx.x * blockDim.x; line_index < nlines; line_index += blockDim.x * gridDim.x) {
 #ifdef DEBUG_CALC_PROC	

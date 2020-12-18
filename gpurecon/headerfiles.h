@@ -25,6 +25,9 @@
 #define DebugFile 1
 //#define DEBUG
 
+
+
+
 struct maxx_tuple
 {
 	__host__ __device__	
@@ -125,6 +128,7 @@ typedef struct
 }VoxelID;
 
 int batchcorr_gpu(CUDAlor* lines, int linesN, CTdims* ctdim, float* attenuation_matrix, void* a_big_dev_buffer);
+__global__ void extract_attenu_value_to_list_with_offset(CUDAlor* lines, int nlines, float* extracted_value_list, int list_offset);
 __global__ void calc_stat(CUDAlor* lines, int nlines, LineStatus* linestat);
 __global__ void alphaextrema(CUDAlor* lines, int nlines, CTdims* ctdim, LineStatus* linestat, float* amin, float* amax, float* tempvec_x_4, float* tempvec_y_4);
 __global__ void alphavecs(CUDAlor* lines, int nlines, CTdims* ctdim, LineStatus* linestat, float* amin, float* amax, float* tempmat_alphas, float* mat_alphas, int* alphavecsize);
@@ -140,7 +144,11 @@ int batchcorr(CUDAlor* lines, int linesN, CTdims* ctdim, float* attenuation_matr
 __global__ void convertolor(short *dev_lor_data_array, float *dx_array,float *dy_array,float *dz_array, int nlines);
 void partlor(float *hx_array,float *hy_array,float *hz_array, int totalnumoflines, int *indexxmax, int *indexymax, int *indexzmax, int *sizen);
 __global__ void convertoloryz(short *dev_lor_data_array, int *dev_indexxmax, CUDAlor*lines, int nlines, int noffset);
+__global__ void convertoloryz_ac(short* dev_lor_data_array, int* dev_indexxmax, CUDAlor* lines, float* linesyz_attvalue_list, int nlines, int noffset);
+
 __global__ void convertolorxz(short *dev_lor_data_array, int *dev_indexymax, CUDAlor*lines, int nlines, int noffset);
+__global__ void convertolorxz_ac(short* dev_lor_data_array, int* dev_indexymax, CUDAlor* lines, float* linesxz_attvalue_list, int nlines, int noffset);
+
 __global__ void Forwardprojyz( float *dev_image, CUDAlor* lines, int linesN );
 __global__ void Forwardprojxz( float *dev_image, CUDAlor* lines, int linesN );
 __global__ void Backprojxz( float *dev_image, float *back_image, CUDAlor* lines, int linesN ,int backProjOnly );

@@ -1,5 +1,10 @@
 #include "headerfiles.h"
 
+#define GRIDSIZEX 128
+#define BLOCKSIZEX 256
+
+
+
 int main(int argc, char** argv)
 {
 //  to run:
@@ -174,9 +179,9 @@ int main(int argc, char** argv)
 	totalDeviceMemoryUsed += (double)(sizeof(CUDAlor) * nlines );
 	printf("(MEMORY): allocating memory to store temp lor data for forward projection, device memory used: %lf MB\n", totalDeviceMemoryUsed/1048576.0);
 
-	//new lines for attenuation correction
-	float* device_attenuation_matrix;
-	CTdims* ctdim,*host_ctdim;
+	/*衰减修正初始化*/
+	float* device_attenuation_matrix; //显存衰减矩阵
+	CTdims* ctdim,*host_ctdim;			//CT矩阵
 	cudaMalloc((void**)&ctdim, sizeof(CTdims));
 	host_ctdim = (CTdims*)malloc(sizeof(CTdims));
 	cudaMemset(ctdim, 0, sizeof(CTdims));
@@ -191,20 +196,76 @@ int main(int argc, char** argv)
 	
 	printf("(INFO): done.\n");
 	if (DebugFile > 0) {
-		SaveImageToFile(device_attenuation_matrix, "ATT_IMAGE.bin", Nx* Ny* Nz);
+		SaveImageToFile(device_attenuation_matrix, "ATT_IMAGE.bin", Nx* Ny* Nz);//保存衰减矩阵到文件
 	}
 	cudaMemcpy(host_ctdim, ctdim, sizeof(CTdims), cudaMemcpyDeviceToHost);
 
-	void* a_big_dev_buffer=nullptr;
-	//cudaMalloc((void**)&a_big_dev_buffer, 40960 * sizeof(char)* nlines);
-	totalDeviceMemoryUsed += (double)(40960 * sizeof(char) * nlines)*0;
-	printf("(MEMORY): allocating memory to provide a device buffer, device memory used: %lf MB\n", totalDeviceMemoryUsed / 1048576.0);
-	//new lines end
+	//修正所需
+	LineStatus* linestat; //LOR stat
+	float* amin, * amax;  
+	float* tempvec_x_4f, * tempvec_y_4f, * tempvec_z_4f;
+	float* tempmat_alphas;
+	float* mat_alphas;
+	float* dis;
+	int* alphavecsize;
+	host_ctdim = (CTdims*)malloc(sizeof(CTdims));
+	cudaMemcpy(host_ctdim, ctdim, sizeof(CTdims), cudaMemcpyDeviceToHost);
+
+	int xdim = host_ctdim->xdim;
+	int ydim = host_ctdim->ydim;
+	int zdim = host_ctdim->zdim;
+	int max_len = xdim + ydim + zdim + 3 + 2;
+	free(host_ctdim);
+
+	size_t onelinebuffersize = 0;
+	int linesN = nlines;//每批次同时运行linesN个
+	VoxelID* voxelidvec;
+	//申请显存
+	cudaMalloc((void**)&linestat, sizeof(LineStatus) * linesN);
+	cudaMemset((void*)linestat, 0, sizeof(LineStatus) * linesN);
+	onelinebuffersize += sizeof(LineStatus);
+	cudaMalloc((void**)&tempvec_x_4f, sizeof(float) * linesN * 4);
+	onelinebuffersize += sizeof(float);
+	cudaMalloc((void**)&tempvec_y_4f, sizeof(float) * linesN * 4);
+	onelinebuffersize += sizeof(float);
+	cudaMalloc((void**)&tempvec_z_4f, sizeof(float) * linesN * 4);
+	onelinebuffersize += sizeof(float);
+	cudaMalloc((void**)&amin, sizeof(float) * linesN);
+	onelinebuffersize += sizeof(float);
+	cudaMalloc((void**)&amax, sizeof(float) * linesN);
+	onelinebuffersize += sizeof(float);
+	cudaMalloc((void**)&tempmat_alphas, sizeof(float) * linesN * max_len);
+	cudaMemset((void*)tempmat_alphas, 0, sizeof(float) * linesN * max_len);
+	onelinebuffersize += sizeof(float) * max_len;
+	cudaMalloc((void**)&voxelidvec, sizeof(VoxelID) * linesN * max_len);
+	onelinebuffersize += sizeof(VoxelID) * max_len;
+	cudaMalloc((void**)&dis, sizeof(float) * linesN * max_len);
+	onelinebuffersize += sizeof(float) * max_len;
+	cudaMalloc((void**)&alphavecsize, sizeof(int) * linesN);
+	cudaMemset((void*)alphavecsize, 0, sizeof(int) * linesN);
+	onelinebuffersize += sizeof(int);
+	cudaMalloc((void**)&mat_alphas, sizeof(float) * linesN * max_len);
+	cudaMemset((void*)mat_alphas, 0, sizeof(float) * linesN * max_len);
+	onelinebuffersize += sizeof(float) * max_len;
+	cudaDeviceSynchronize();
+
+	totalDeviceMemoryUsed += (double)(onelinebuffersize* linesN);
+	printf("(MEMORY): allocating memory to for attenuation calculation, device memory used: %lf MB\n", totalDeviceMemoryUsed / 1048576.0);
+
+	/*衰减修正初始化结束*/
+
 
 	int totalnumoflinesxz = sizen[1];
 	int totalnumoflinesyz = sizen[0];
 
 	printf("\nlor memory are prepared now running OSEM (running batches of %d lors) \n\n", nlines);
+
+	
+
+
+
+
+
 
 	cudaEvent_t start,stop;
 	cudaEventCreate(&start);
@@ -214,15 +275,86 @@ int main(int argc, char** argv)
 	printf("total iteration: #%d\n",iterationCount);
 
 
-	//////debug output
-	FILE* fp = fopen("dump.log", "w");
-	int dumpmaxline = 3;
-	CUDAlor* host_dumplines = (CUDAlor*)malloc(sizeof(CUDAlor) * nlines);
-	CUDAlor* this_line;
-	////end
-	int dumplength;
 	int maxxzbatch, maxyzbatch;
-	
+	int realnlines;
+
+
+	//进行衰减修正
+	float* linesxz_attvalue_list, *linesyz_attvalue_list;
+	cudaMalloc((void**)&linesxz_attvalue_list, sizeof(float) * totalnumoflinesxz);
+	cudaMalloc((void**)&linesyz_attvalue_list, sizeof(float) * totalnumoflinesyz);
+	maxxzbatch = ceil(totalnumoflinesxz / (float)nlines);
+	maxyzbatch = ceil(totalnumoflinesyz / (float)nlines);
+	//计算XZ线上的衰减值
+	printf("Doing attu corr for XZ lines.\n");
+	for (i = 0; i < maxxzbatch; i++) {
+		realnlines = nlines;
+		if ((i + 1) * nlines > totalnumoflinesxz) {
+			realnlines = totalnumoflinesxz - i * nlines;
+			printf("(DEBUG) LAST BATCH XZ LOR SIZE=%d\n", realnlines);
+		}//防止总数少于batchsize batchsize<0出现奇怪的bug
+		int noffset = i * nlines;
+		convertolorxz << <256, 512 >> > (dev_lor_data_array, dev_indexymax, lines, realnlines, noffset);//将lor_data中lor根据index_y_max存入lines
+		
+		//衰减修正开始
+		linesN = realnlines;//该批次实际的LOR个数 realnlines<=linesN
+
+		calc_stat << <GRIDSIZEX, BLOCKSIZEX >> > (lines, linesN, linestat);
+		alphaextrema << <GRIDSIZEX, BLOCKSIZEX >> > (lines, linesN, ctdim, linestat, amin, amax, tempvec_x_4f, tempvec_y_4f);
+		alphavecs << <GRIDSIZEX, BLOCKSIZEX >> > (lines, linesN, ctdim, linestat, amin, amax, tempmat_alphas, mat_alphas, alphavecsize);
+		dist_and_ID_in_voxel << <GRIDSIZEX, BLOCKSIZEX >> > (lines, linesN, ctdim, linestat, voxelidvec, dis, mat_alphas, alphavecsize);
+		attu_inner_product << <GRIDSIZEX, BLOCKSIZEX >> > (lines, linesN, ctdim, device_attenuation_matrix, linestat, voxelidvec, dis, alphavecsize);
+
+
+		extract_attenu_value_to_list_with_offset << <GRIDSIZEX, BLOCKSIZEX >> > (lines, linesN, linesxz_attvalue_list, noffset);
+		//清空数据
+		cudaMemset((void*)linestat, 0, sizeof(LineStatus) * linesN);
+		cudaMemset((void*)tempmat_alphas, 0, sizeof(float) * linesN * max_len);
+		cudaMemset((void*)alphavecsize, 0, sizeof(int) * linesN);
+		cudaMemset((void*)mat_alphas, 0, sizeof(float) * linesN * max_len);
+		cudaDeviceSynchronize();
+
+		//衰减修正结束
+
+	}
+	printf("attu corr for XZ lines ends.\n");
+	//计算YZ线上的衰减值
+	printf("Doing attu corr for YZ lines.\n");
+	for (i = 0; i < maxyzbatch; i++) {
+		realnlines = nlines;
+		if ((i + 1) * nlines > totalnumoflinesyz) {
+			realnlines = totalnumoflinesyz - i * nlines;
+			printf("(DEBUG) LAST BATCH YZ LOR SIZE=%d\n", realnlines);
+		}//防止总数少于batchsize batchsize<0出现奇怪的bug
+		int noffset = i * nlines;
+		convertolorxz << <256, 512 >> > (dev_lor_data_array, dev_indexxmax, lines, realnlines, noffset);//将lor_data中lor根据index_x_max存入lines
+
+		//衰减修正开始
+		linesN = realnlines;//该批次实际的LOR个数 realnlines<=linesN
+
+		calc_stat << <GRIDSIZEX, BLOCKSIZEX >> > (lines, linesN, linestat);
+		alphaextrema << <GRIDSIZEX, BLOCKSIZEX >> > (lines, linesN, ctdim, linestat, amin, amax, tempvec_x_4f, tempvec_y_4f);
+		alphavecs << <GRIDSIZEX, BLOCKSIZEX >> > (lines, linesN, ctdim, linestat, amin, amax, tempmat_alphas, mat_alphas, alphavecsize);
+		dist_and_ID_in_voxel << <GRIDSIZEX, BLOCKSIZEX >> > (lines, linesN, ctdim, linestat, voxelidvec, dis, mat_alphas, alphavecsize);
+		attu_inner_product << <GRIDSIZEX, BLOCKSIZEX >> > (lines, linesN, ctdim, device_attenuation_matrix, linestat, voxelidvec, dis, alphavecsize);
+
+
+		extract_attenu_value_to_list_with_offset << <GRIDSIZEX, BLOCKSIZEX >> > (lines, linesN, linesyz_attvalue_list, noffset);
+		//清空数据
+		cudaMemset((void*)linestat, 0, sizeof(LineStatus) * linesN);
+		cudaMemset((void*)tempmat_alphas, 0, sizeof(float) * linesN * max_len);
+		cudaMemset((void*)alphavecsize, 0, sizeof(int) * linesN);
+		cudaMemset((void*)mat_alphas, 0, sizeof(float) * linesN * max_len);
+		cudaDeviceSynchronize();
+
+		//衰减修正结束
+
+	}
+	printf("attu corr for YZ lines ends.\n");
+
+
+
+	//进行三维重建
 	for (int iter=0;iter<iterationCount;iter++)
 	{
 		printf("now iteration: #%d\n", iter);
@@ -239,7 +371,7 @@ int main(int argc, char** argv)
 		for (i= 0; i< maxxzbatch; i++)
 		{
 			
-			int realnlines = nlines;
+			realnlines = nlines;
 			//realnlines = 3;
 			if ((i+1) * nlines > totalnumoflinesxz) {
 				realnlines = totalnumoflinesxz - i * nlines;
@@ -249,26 +381,14 @@ int main(int argc, char** argv)
 			
 			
 
-			convertolorxz<<<256,512>>>(dev_lor_data_array,dev_indexymax,lines,realnlines,noffset);//将lor_data中lor根据indexxy存入lines
-			//dump 
-			dumplength = (dumpmaxline < realnlines) ? dumpmaxline : realnlines;
-			fprintf(fp, "DUMP %d lines for run %d\n", dumplength, i);
-			cudaMemcpy((void* )host_dumplines, (void*)lines, sizeof(CUDAlor) * dumplength, cudaMemcpyDeviceToHost);
-			this_line = (CUDAlor*)host_dumplines;
-			for (int j = 0; j <dumplength ; j++) {
-				this_line = (CUDAlor*)host_dumplines + j;
-				fprintf(fp, "lines:%d=\n", j);
-				fprintf(fp, "x0=%f,y0=%f,z0=%f\n", this_line->rx0, this_line->ry0, this_line->rz0);
-			}
-			checkCudaErrors(cudaDeviceSynchronize());
-			//dump end
 			if (use_attu_corr) {
-				printf("Doing attu corr \n");
-				batchcorr_gpu(lines, realnlines, ctdim, device_attenuation_matrix, a_big_dev_buffer);
+				
+				convertolorxz_ac << <256, 512 >> > (dev_lor_data_array, dev_indexymax, lines, linesxz_attvalue_list, realnlines, noffset);//将lor_data中lor根据index_y存入lines
 				Forwardprojxz << <256, 512 >> > (dev_image, lines, realnlines);
 				Backprojxz_ac << <256, 512 >> > (dev_image, dev_back_image, lines, realnlines, 0);//changed 			
 			}					//Backprojxz<<<128,128>>>(dev_image,dev_back_image,lines,realnlines,0);
 			else {
+				convertolorxz << <256, 512 >> > (dev_lor_data_array, dev_indexymax, lines, realnlines, noffset);//将lor_data中lor根据index_y存入lines
 				Forwardprojxz << <256, 512 >> > (dev_image, lines, realnlines);
 				Backprojxz << <256, 512 >> > (dev_image, dev_back_image, lines, realnlines, 0);//changed
 			}
@@ -307,18 +427,16 @@ int main(int argc, char** argv)
 			int noffset = i*nlines;
 			
 
-			convertoloryz<<<128,128>>>(dev_lor_data_array,dev_indexxmax,lines,realnlines,noffset);
-			//float* host_lines = (float*)malloc(realnlines * sizeof(CUDAlor));
-			//cudaMemcpy(host_lines, lines, realnlines * sizeof(CUDAlor), cudaMemcpyDeviceToHost);
-			//batchcorr(host_lines, realnlines, host_ctdim, device_attenuation_matrix);//new line for attenuation correction//new line for attenuation correction
-			//cudaMemcpy(lines, host_lines, realnlines * sizeof(CUDAlor), cudaMemcpyHostToDevice);
-			//free(host_lines);
+			
+
 			if (use_attu_corr) {
-				batchcorr_gpu(lines, realnlines, ctdim, device_attenuation_matrix, a_big_dev_buffer);
+
+				convertoloryz_ac << <256, 512 >> > (dev_lor_data_array, dev_indexxmax, lines, linesyz_attvalue_list, realnlines, noffset);
 				Forwardprojyz << <256, 512 >> > (dev_image, lines, realnlines);
 				Backprojyz_ac << <256, 512 >> > (dev_image, dev_back_image, lines, realnlines, 0);
 			}
 			else {
+				convertoloryz << <256, 512 >> > (dev_lor_data_array, dev_indexxmax, lines, realnlines, noffset);
 				Forwardprojyz << <256, 512 >> > (dev_image, lines, realnlines);
 				Backprojyz << <256, 512 >> > (dev_image, dev_back_image, lines, realnlines, 0);
 			}
@@ -327,15 +445,7 @@ int main(int argc, char** argv)
 		} // if using OSEM, move the iteration to #OSEM
 
 		Brotate<<<256,512>>>(dev_back_image, dev_tempback_image);//转回去
-		//Brotate << <128, 128 >> > (device_attenuation_matrix, temp_attenuation_matrix);//; no need of ROT
 		cudaMemcpy(dev_back_image, dev_tempback_image, Nx*Ny*Nz *sizeof(float ),cudaMemcpyDeviceToDevice);
-		//cudaMemcpy(device_attenuation_matrix, temp_attenuation_matrix, Nx * Ny * Nz * sizeof(float), cudaMemcpyDeviceToDevice);
-
-		// Frotate<<<128,128>>>(dev_back_image, dev_tempback_image);
-		// cudaMemcpy(dev_back_image, dev_tempback_image, Nx*Ny*Nz *sizeof(float ),cudaMemcpyDeviceToDevice);
-
-		// Frotate<<<128,128>>>(dev_back_image, dev_tempback_image);
-		// cudaMemcpy(dev_back_image, dev_tempback_image, Nx*Ny*Nz *sizeof(float ),cudaMemcpyDeviceToDevice);
 
 		if(shouldNormalize>0)
 		{
@@ -369,5 +479,23 @@ int main(int argc, char** argv)
 	cudaFree(device_attenuation_matrix);
 	cudaFree(dev_image); cudaFree(dev_back_image); cudaFree(dev_tempback_image); cudaFree(lines);
 	cudaFree(dev_indexxmax); cudaFree(dev_indexymax);free(sizen);//cudaFree(dev_indexzmax);
+
+
+
+	//衰减修正相关
+	cudaFree(linestat);
+	cudaFree(tempvec_x_4f);
+	cudaFree(tempvec_y_4f);
+	cudaFree(tempvec_z_4f);
+	cudaFree(amin);
+	cudaFree(amax);
+	cudaFree(tempmat_alphas);
+	cudaFree(voxelidvec);
+	cudaFree(dis);
+	cudaFree(alphavecsize);
+	cudaFree(mat_alphas);
+	//结束
+
+
 	return 0;
 }
