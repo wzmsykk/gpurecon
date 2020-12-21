@@ -23,6 +23,30 @@ int GetLines(char* filename)
     return n;
 }
 
+int GetLines_c(const char* filename)
+{
+    printf("getting number of lines for file: %s\n", filename);
+    FILE* fp;
+    int n = 0;
+    int ch;
+    if ((fp = fopen(filename, "r+")) == NULL)
+    {
+        fprintf(stderr, "can not open file %s\n", filename);
+        return 0;
+    }
+
+    while ((ch = fgetc(fp)) != EOF)
+    {
+        if (ch == '\n')
+        {
+            n++;
+        }
+    }
+
+    fclose(fp);
+    return n;
+}
+
 void PrintConfig()
 {
     printf(" Nx = %d\n Ny = %d\n Nz = %d\n",Nx, Ny, Nz);
@@ -50,6 +74,27 @@ void SaveImageToFile(float * dev_image, char* filename, int size)
     printf("saved image to %s \n",filename);
 	fclose(save_image);
 	free(host_image);    
+
+    //MATRIX[Y][Z][X]
+}
+
+void SaveImageToFile_EX(float* dev_image, char* filename, int imagesize, int offset, int savesize)
+{
+
+    float* host_image = (float*)malloc(sizeof(float) * imagesize);
+    cudaMemcpy(host_image, dev_image, imagesize * sizeof(float), cudaMemcpyDeviceToHost);
+
+    FILE* save_image = fopen(filename, "wb");//wb!! 
+    if (save_image == NULL)
+    {
+        printf("can not write to image file!\n");
+        exit(1);
+    }
+    float* head_ptr = host_image + offset;
+    fwrite(head_ptr, sizeof(float), savesize, save_image);
+    printf("saved image to %s \n", filename);
+    fclose(save_image);
+    free(host_image);
 
     //MATRIX[Y][Z][X]
 }

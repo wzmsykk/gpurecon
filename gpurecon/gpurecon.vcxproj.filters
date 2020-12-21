@@ -24,6 +24,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="headerfiles.h" />
+    <ClInclude Include="include\cmdline.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="ClassDiagram.cd" />

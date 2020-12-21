@@ -10,7 +10,7 @@ __global__ void Fnorm(float *dev_image, float *dev_back_image, float *dev_norm_i
 	}
 }
 
-void CalcNormImage(float *norm_image, int numoflinesForNorm, char* filename)
+void CalcNormImage(float *norm_image, int numoflinesForNorm, const char* filename)
 {
 
 	for (int i=0;i<Nx*Ny*Nz;i++){*(norm_image+i) = 0;}
