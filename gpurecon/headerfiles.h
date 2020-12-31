@@ -12,8 +12,7 @@
 #include<stdio.h>
 #include<stdlib.h>
 #include<math.h>
-#include <helper_cuda.h>
-#include <helper_functions.h>
+
 
 #define Nx 400
 #define Ny 400
@@ -162,7 +161,9 @@ __global__ void Fnorm(float *dev_image, float *back_image, float *dev_norm_image
 
 
 //__global__ void attenucorryz(float* lines, int linesN, CTdims* ctdim, float* attenuation_matrix);
-int genacmatrix(float* attenuation_matrix, CTdims* dev_ctdim, short* dev_ct_matrix);
+
+int genacmatrix(float* attenuation_matrix, CTdims* dev_ctdim, short* dev_ct_matrix, char* ct_header_filename);
+
 __global__ void genacvalue(float* attenuation_matrix, CTdims* dev_ctdim, short* dev_ct_matrix);
 int GetLines(char* filename);
 int GetLines_c(const char* filename);

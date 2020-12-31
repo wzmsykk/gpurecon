@@ -222,7 +222,7 @@ int main(int argc, char** argv)
 		printf("(MEMORY): allocating memory to store temp attenuation matrix, device memory used: %lf MB\n", totalDeviceMemoryUsed / 1048576.0);
 
 		printf("(INFO): converting ct matrix values into attenuation values.\n");
-		genacmatrix(device_attenuation_matrix, dev_ctdim, dev_ct_matrix_short); //将CT矩阵转化为衰减值
+		genacmatrix(device_attenuation_matrix, dev_ctdim, dev_ct_matrix_short,const_cast<char*>(ct_path.c_str())); //将CT矩阵转化为衰减值
 		printf("(INFO): done.\n");
 		if (DebugFile > 0) {
 			SaveImageToFile(device_attenuation_matrix, "ATT_IMAGE.bin", Nx * Ny * Nz);//保存衰减矩阵到文件
