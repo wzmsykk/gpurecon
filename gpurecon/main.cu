@@ -17,6 +17,7 @@ int main(int argc, char** argv)
 	myparser.add<std::string>("lorfile", 'l', "image LOR filename", true, "");
 	myparser.add<std::string>("normfile", 'n', "normalization LOR filename", false, "");
 	myparser.add<std::string>("ctfile", 'c', "ct filename for ac correction", false, "");
+	myparser.add<std::string>("outputname", 'o', "output image filename", false, "imageZYX.bin");
 	myparser.add<int>("bsize", 'b', "batchsize", false,128*128 );
 	myparser.add<int>("niter", 'i', "number of iteration", false, 1);
 	myparser.add("ac", 'a', "using attenuation correction", false, false);
@@ -29,6 +30,7 @@ int main(int argc, char** argv)
 	std::string norm_lor_path = myparser.get<std::string>("normfile");
 	std::string lor_path = myparser.get<std::string>("lorfile");
 	std::string ct_path = myparser.get<std::string>("ctfile");
+	std::string output_name = myparser.get<std::string>("outputname");
 	//TO DO
 	PrintConfig();
 
@@ -502,7 +504,7 @@ int main(int argc, char** argv)
 
 	//SaveImageToFile(dev_image, "image.bin", Nx * Ny * Nz); //不再存为非ZYX格式
 	Rrotate << <256, 512 >> > (dev_image, dev_tempback_image);//存为ZYX格式	
-	SaveImageToFile(dev_tempback_image, "imageZYX.bin", Nx * Ny * Nz);
+	SaveImageToFile(dev_tempback_image, const_cast<char *>(output_name.c_str()), Nx * Ny * Nz);
 	if (Nz > 2) {
 		SaveImageToFile_EX(dev_tempback_image, "imageZYX_M2.bin", Nx* Ny* Nz, Nx* Ny, Nx* Ny* (Nz - 2));//去掉顶部和底部两片之后的结果
 	}

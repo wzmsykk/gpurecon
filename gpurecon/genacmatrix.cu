@@ -1,5 +1,5 @@
 #include"headerfiles.h"
-void genctdim(CTdims* host_ctdim, const char* ctheader);
+void genctdim(CTdims* host_ctdim, char* ctheader);
 void genctdim(CTdims* host_ctdim, char* ctheader) {
 	FILE* fp;
 	char* linebuffer;
