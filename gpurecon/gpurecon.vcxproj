@@ -108,6 +108,7 @@
     <CudaCompile Include="util.cu" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="ideftype.h" />
     <ClInclude Include="headerfiles.h" />
     <ClInclude Include="include\cmdline.h" />
   </ItemGroup>

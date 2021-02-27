@@ -11,12 +11,14 @@ int main(int argc, char** argv)
 //  to run:
 //	nvcc -arch=sm_20 presort.cu 
 //	./a.out will print usage
-	cudaError_t err = cudaDeviceSetLimit(cudaLimitMallocHeapSize, 1048576ULL * 256);
+	cudaError_t cudaerr = cudaDeviceSetLimit(cudaLimitMallocHeapSize, 1048576ULL * 256);
+	IDEF_ErrorCode ierr;
 	cmdline::parser myparser;
 	myparser.footer("\n\n a GPU accelerated 3D PET OSEM image reconsruction tool.\n");
 	myparser.add<std::string>("lorfile", 'l', "image LOR filename", true, "");
 	myparser.add<std::string>("normfile", 'n', "normalization LOR filename", false, "");
-	myparser.add<std::string>("ctfile", 'c', "ct filename for ac correction", false, "");
+	myparser.add<std::string>("ctmhdfile", 'h', "ct header filename(MHD) for ac correction", false, "");
+	myparser.add<std::string>("ctbinfile", 'c', "ct binary filename(BIN) for ac correction", false, "");
 	myparser.add<std::string>("outputname", 'o', "output image filename", false, "imageZYX.bin");
 	myparser.add<int>("bsize", 'b', "batchsize", false,128*128 );
 	myparser.add<int>("niter", 'i', "number of iteration", false, 1);
@@ -27,16 +29,17 @@ int main(int argc, char** argv)
 	int iterationCount = myparser.get<int>("niter");		//迭代次数
 	int batchsize = myparser.get<int>("bsize");			//批次大小
 	
-	std::string norm_lor_path = myparser.get<std::string>("normfile");
-	std::string lor_path = myparser.get<std::string>("lorfile");
-	std::string ct_path = myparser.get<std::string>("ctfile");
-	std::string output_name = myparser.get<std::string>("outputname");
+	char* norm_lor_path = const_cast<char*>(myparser.get<std::string>("normfile").c_str());
+	char* lor_path = const_cast<char*>(myparser.get<std::string>("lorfile").c_str());
+	char* ct_mhd_path = const_cast<char*>(myparser.get<std::string>("ctmhdfile").c_str());
+	char* ct_bin_path = const_cast<char*>(myparser.get<std::string>("ctbinfile").c_str());
+	char* output_name = const_cast<char*>(myparser.get<std::string>("outputname").c_str());
 	//TO DO
 	PrintConfig();
 
 	int totalnumoflines,i;
-	int shouldNormalize = 0;//效率修正
-	if (norm_lor_path != "") shouldNormalize = 1;
+	int shouldNormalize = 0;//效率修正 TODO
+	//if (norm_lor_path != "") shouldNormalize = 1;
 	
 	
 	double totalDeviceMemoryUsed=0;
@@ -49,9 +52,9 @@ int main(int argc, char** argv)
 	
 	if(shouldNormalize >0)//效率修正
 	{
-		numoflinesForNorm=GetLines_c(norm_lor_path.c_str());
+		numoflinesForNorm=GetLines(norm_lor_path);
 		printf("Calculating normalization image\n");
-		CalcNormImage(norm_image, numoflinesForNorm, norm_lor_path.c_str());
+		CalcNormImage(norm_image, numoflinesForNorm, norm_lor_path);
 		FILE * save_norm_imagey;
 		save_norm_imagey = fopen ("norm_image.bin" , "w");
 		if (save_norm_imagey == NULL) 
@@ -66,7 +69,7 @@ int main(int argc, char** argv)
 
 
 	// get number of lines from lor files
-	totalnumoflines=GetLines_c(lor_path.c_str());
+	totalnumoflines=GetLines(lor_path);
 	if( totalnumoflines <= 0)
 	{
 		printf("Empty lor file.\n");
@@ -76,14 +79,14 @@ int main(int argc, char** argv)
 	printf("Num of LORs is: %d\n",totalnumoflines);
 
 	FILE * lor_data;
-  	lor_data = fopen(lor_path.c_str(), "r");
+  	lor_data = fopen(lor_path, "r");
    	if (lor_data == NULL) {
-		printf("lor data file not found\n");
+		printf("lor data file %s not found\n", lor_path);
 		exit(1);
 	}
 	else 
 	{
-		printf("lor data file found as %s\n", lor_path.c_str());
+		printf("lor data file %s is found\n", lor_path);
 	}
 
 	// read data from lor file:
@@ -214,29 +217,50 @@ int main(int argc, char** argv)
 
 	//申请内存 转换CT
 	if (use_ac) {
-		cudaMalloc((void**)&dev_ctdim, sizeof(CTdims));
-		host_ctdim = (CTdims*)malloc(sizeof(CTdims));
-		cudaMemset(dev_ctdim, 0, sizeof(CTdims));
-		cudaMalloc((void**)&device_attenuation_matrix, Nx* Ny* Nz * sizeof(float));
-		cudaMemset(device_attenuation_matrix, 0, Nx* Ny* Nz * sizeof(float));
 
-		totalDeviceMemoryUsed += (double)(2 * sizeof(float) * Nx * Ny * Nz);
+
+		//device ct信息结构体初始化
+		cudaMalloc((void**)&dev_ctdim, sizeof(CTdims));
+		cudaMemset(dev_ctdim, 0, sizeof(CTdims));
+		//host ct信息结构体初始化
+		host_ctdim = (CTdims*)malloc(sizeof(CTdims));
+		memset(host_ctdim, 0, sizeof(CTdims));
+
+		//从mhd文件中读取CT信息
+		ierr = genctdim(host_ctdim, ct_mhd_path);
+		if (ierr != IDEF_Success) //TO DO 判断err
+		{
+			exit(ierr);
+		}
+		
+
+		//得到ct总voxel个数, 初始化host_attenu_matrix衰减矩阵
+		size_t ctvoxcount = host_ctdim->xdim * host_ctdim->ydim * host_ctdim->zdim;
+		cudaMalloc((void**)&device_attenuation_matrix, ctvoxcount * sizeof(float));
+		cudaMemset(device_attenuation_matrix, 0, ctvoxcount * sizeof(float));
+
+		//统计
+		totalDeviceMemoryUsed += (double)(2 * sizeof(float) * ctvoxcount);
 		printf("(MEMORY): allocating memory to store temp attenuation matrix, device memory used: %lf MB\n", totalDeviceMemoryUsed / 1048576.0);
 
 		printf("(INFO): converting ct matrix values into attenuation values.\n");
-		genacmatrix(device_attenuation_matrix, dev_ctdim, dev_ct_matrix_short,const_cast<char*>(ct_path.c_str())); //将CT矩阵转化为衰减值
+		ierr = genacmatrix(device_attenuation_matrix, host_ctdim, ct_bin_path); //将CT矩阵转化为衰减值
+		if (ierr != IDEF_Success)
+		{
+			exit(ierr);
+		}
+
+
 		printf("(INFO): done.\n");
 		if (DebugFile > 0) {
-			SaveImageToFile(device_attenuation_matrix, "ATT_IMAGE.bin", Nx * Ny * Nz);//保存衰减矩阵到文件
-			cudaMemcpy(host_ctdim, dev_ctdim, sizeof(CTdims), cudaMemcpyDeviceToHost);
+			SaveImageToFile(device_attenuation_matrix, "ATT_IMAGE.bin", ctvoxcount);//保存衰减矩阵到文件
 		}
-		host_ctdim = (CTdims*)malloc(sizeof(CTdims));
 		cudaMemcpy(host_ctdim, dev_ctdim, sizeof(CTdims), cudaMemcpyDeviceToHost);
 
 		xdim = host_ctdim->xdim;
 		ydim = host_ctdim->ydim;
 		zdim = host_ctdim->zdim;
-		max_len = xdim + ydim + zdim + 3 + 2;
+		max_len = xdim + ydim + zdim + 3 + 2; //(dim+1) 以及每dim之间 有1余量
 		free(host_ctdim);
 
 		size_t onelinebuffersize = 0; //统计每个LOR所需的显存大小
@@ -504,7 +528,7 @@ int main(int argc, char** argv)
 
 	//SaveImageToFile(dev_image, "image.bin", Nx * Ny * Nz); //不再存为非ZYX格式
 	Rrotate << <256, 512 >> > (dev_image, dev_tempback_image);//存为ZYX格式	
-	SaveImageToFile(dev_tempback_image, const_cast<char *>(output_name.c_str()), Nx * Ny * Nz);
+	SaveImageToFile(dev_tempback_image, const_cast<char *>(output_name), Nx * Ny * Nz);
 	if (Nz > 2) {
 		SaveImageToFile_EX(dev_tempback_image, "imageZYX_M2.bin", Nx* Ny* Nz, Nx* Ny, Nx* Ny* (Nz - 2));//去掉顶部和底部两片之后的结果
 	}

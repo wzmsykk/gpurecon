@@ -1,6 +1,6 @@
 #include"headerfiles.h"
-void genctdim(CTdims* host_ctdim, char* ctheader);
-void genctdim(CTdims* host_ctdim, char* ctheader) {
+
+IDEF_ErrorCode genctdim(CTdims* host_ctdim, char* ctheader) {
 	FILE* fp;
 	char* linebuffer;
 	char* p, * vp;
@@ -10,9 +10,9 @@ void genctdim(CTdims* host_ctdim, char* ctheader) {
 		fp = fopen(ctheader, "r");
 		if (fp == nullptr) {
 			printf("(ERROR) CT headerfile not found.\n");
-			exit(1);
+			return IDEF_FileNotFoundError;
 		}
-		totalnumoflines = GetLines_c(ctheader);
+		totalnumoflines = GetLines(ctheader);
 		printf("totallines=%d\n", totalnumoflines);
 		linebuffer = (char*)malloc(sizeof(char) * 512);
 		for (int i = 0; i < totalnumoflines; i++) {
@@ -48,6 +48,9 @@ void genctdim(CTdims* host_ctdim, char* ctheader) {
 			}
 		}
 		fclose(fp);
+		host_ctdim->x0 -= host_ctdim->xdim * host_ctdim->xspacing * 0.5;//中心与原点对齐
+		host_ctdim->y0 -= host_ctdim->ydim * host_ctdim->yspacing * 0.5;//中心与原点对齐
+		host_ctdim->z0 -= host_ctdim->zdim * host_ctdim->zspacing * 0.5;//中心与原点对齐
 	}
 	else {
 		host_ctdim->x0 = -Nx * pixel_size / 2.0f;
@@ -64,20 +67,46 @@ void genctdim(CTdims* host_ctdim, char* ctheader) {
 	printf("(DEBUG) xoffset=%f,yoffset=%f,zoffset=%f\n", host_ctdim->x0, host_ctdim->y0, host_ctdim->z0);
 	printf("(DEBUG) xspace=%f,yspace=%f,zspace=%f\n", host_ctdim->xspacing, host_ctdim->yspacing, host_ctdim->zspacing);
 	printf("(DEBUG) xdim=%d,ydim=%d,zdim=%d\n", host_ctdim->xdim, host_ctdim->ydim, host_ctdim->zdim);
-}
-int genacmatrix(float* dev_attenuation_matrix, CTdims* dev_ctdim, short* dev_ct_matrix, char* ct_header_filename) {
-	CTdims* host_ctdim;
-	host_ctdim = (CTdims*)malloc(sizeof(CTdims));
 
-	genctdim(host_ctdim, ct_header_filename);
+	return IDEF_Success;
+}
+IDEF_ErrorCode genacmatrix(float* dev_attenuation_matrix, CTdims* host_ctdim, char* ct_bin_path) {
+	CTdims* dev_ctdim;
+	cudaMalloc((void**)&dev_ctdim, sizeof(CTdims));
+
+	FILE* fp = fopen(ct_bin_path, "rb");
+	if (fp == nullptr) {//文件是否存在
+		printf("(ERROR) CT binfile not found.\n");
+		return IDEF_FileNotFoundError;
+	}
+	size_t fsize_real, fsize_exp;
+	fseek(fp, 0, SEEK_END);
+	fsize_real = ftell(fp);
+	size_t ctvoxcount = host_ctdim->xdim * host_ctdim->ydim * host_ctdim->zdim ;
+	fsize_exp = ctvoxcount * sizeof(short);//预期是short TO DO 其他类型
+	printf("(INFO) Expected bin file size:%zu, found bin file size:%zu", fsize_exp, fsize_real);
+	if (fsize_exp != fsize_real) {
+		printf("(ERROR) CT binfile not found.\n");
+		return IDEF_FileSizeError;
+	}
+
+	short* dev_ct_matrix;
+	cudaMalloc((void**)&dev_ct_matrix, ctvoxcount * sizeof(short));
+	short* host_ct_matrix = (short*)malloc(ctvoxcount *sizeof(short));
+	fread(host_ct_matrix, sizeof(short), ctvoxcount, fp);
+	fclose(fp);
+
+	cudaMemcpy(dev_ct_matrix, host_ct_matrix, ctvoxcount * sizeof(short), cudaMemcpyHostToDevice);
 	cudaMemcpy(dev_ctdim, host_ctdim, sizeof(CTdims), cudaMemcpyHostToDevice);
-	free(host_ctdim);
+
 
 	cudaDeviceSynchronize();
 
 	genacvalue << <256, 512 >> > (dev_attenuation_matrix, dev_ctdim, dev_ct_matrix);
 	cudaDeviceSynchronize();
-	return 0;
+	free(host_ct_matrix);
+	cudaFree(dev_ct_matrix);
+	return IDEF_Success;
 }
 __global__ void genacvalue(float* attenuation_matrix, CTdims* dev_ctdim, short* dev_ct_matrix) {
 	//do nothing

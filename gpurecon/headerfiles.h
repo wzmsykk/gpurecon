@@ -12,7 +12,7 @@
 #include<stdio.h>
 #include<stdlib.h>
 #include<math.h>
-
+#include "ideftype.h"
 
 #define Nx 400
 #define Ny 400
@@ -161,16 +161,15 @@ __global__ void Fnorm(float *dev_image, float *back_image, float *dev_norm_image
 
 
 //__global__ void attenucorryz(float* lines, int linesN, CTdims* ctdim, float* attenuation_matrix);
-
-int genacmatrix(float* attenuation_matrix, CTdims* dev_ctdim, short* dev_ct_matrix, char* ct_header_filename);
+IDEF_ErrorCode genctdim(CTdims* host_ctdim, char* ctheader);
+IDEF_ErrorCode genacmatrix(float* dev_attenuation_matrix, CTdims* host_ctdim, char* ct_bin_path);
 
 __global__ void genacvalue(float* attenuation_matrix, CTdims* dev_ctdim, short* dev_ct_matrix);
 int GetLines(char* filename);
-int GetLines_c(const char* filename);
 void PrintConfig();
 void CalcNormImage(float *norm_image, int numoflinesForNorm, const char* filename);
 __device__ Lorposition CalcLorPositionFull(short rsectorID1, short rsectorID2, short moduleID1, short moduleID2, short crystalID1, short crystalID2);
 //__device__ Lorposition CalcLorPosition(short moduleID1, short moduleID2, short crystalID1, short crystalID2);
-void SaveImageToFile(float * dev_image, char* filename, int size);
-void SaveImageToFile_EX(float* dev_image, char* filename, int imagesize, int offset, int savesize);
+IDEF_ErrorCode SaveImageToFile(float * dev_image, char* filename, int size);
+IDEF_ErrorCode SaveImageToFile_EX(float* dev_image, char* filename, int imagesize, int offset, int savesize);
 

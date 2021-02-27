@@ -23,29 +23,6 @@ int GetLines(char* filename)
     return n;
 }
 
-int GetLines_c(const char* filename)
-{
-    printf("getting number of lines for file: %s\n", filename);
-    FILE* fp;
-    int n = 0;
-    int ch;
-    if ((fp = fopen(filename, "r+")) == NULL)
-    {
-        fprintf(stderr, "can not open file %s\n", filename);
-        return 0;
-    }
-
-    while ((ch = fgetc(fp)) != EOF)
-    {
-        if (ch == '\n')
-        {
-            n++;
-        }
-    }
-
-    fclose(fp);
-    return n;
-}
 
 void PrintConfig()
 {
@@ -54,11 +31,22 @@ void PrintConfig()
     double sharedMemorySize = sharedmemorySizeInt*4*4/1024.0;
     printf(" need to allocate shared memory with size: Nx x Nz = %d (%lf KB)\n",Nx*Nz, sharedMemorySize);
     printf(" refer to the max shared memory limit on the device, otherwise may cause blank image\n");
+    //TEST CODE
+    cudaDeviceProp deviceProp;
+    cudaGetDeviceProperties(&deviceProp, 0);
+    printf(" Total amount of shared memory per block = %zu\n", deviceProp.sharedMemPerBlock);
+
+    if (deviceProp.sharedMemPerBlock < sharedMemorySize) {
+        printf("(WARNING) shared memory needed is larger than the device could provide.\n");
+    }
+
     printf(" TOR_WIDTH = %d\n pixel_size = %lf\n ISIGMA = %lf\n",TOR_WIDTH, (double)pixel_size, ISIGMA);
 }
 
 
-void SaveImageToFile(float * dev_image, char* filename, int size)
+
+
+IDEF_ErrorCode SaveImageToFile(float * dev_image, char* filename, int size)
 {
 
 	float * host_image = (float *)malloc(sizeof(float)*size);
@@ -74,11 +62,11 @@ void SaveImageToFile(float * dev_image, char* filename, int size)
     printf("saved image to %s \n",filename);
 	fclose(save_image);
 	free(host_image);    
-
+    return IDEF_Success;
     //MATRIX[Y][Z][X]
 }
 
-void SaveImageToFile_EX(float* dev_image, char* filename, int imagesize, int offset, int savesize)
+IDEF_ErrorCode SaveImageToFile_EX(float* dev_image, char* filename, int imagesize, int offset, int savesize)
 {
 
     float* host_image = (float*)malloc(sizeof(float) * imagesize);
@@ -95,6 +83,6 @@ void SaveImageToFile_EX(float* dev_image, char* filename, int imagesize, int off
     printf("saved image to %s \n", filename);
     fclose(save_image);
     free(host_image);
-
+    return IDEF_Success;
     //MATRIX[Y][Z][X]
 }
