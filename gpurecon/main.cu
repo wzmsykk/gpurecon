@@ -454,20 +454,17 @@ int main(int argc, char** argv)
 				Forwardprojxz << <256, 512 >> > (dev_image, lines, realnlines);
 				Backprojxz << <256, 512 >> > (dev_image, dev_back_image, lines, realnlines, 0);//changed
 			}
+			cudaDeviceSynchronize();
 			printf("Done!\n");
+			
 		} // if using OSEM, move the iteration to #OSEM
-	
+		
 		if(DebugInfo>0)
 		{
 			printf("(IMAGE) rotated image 90 degrees to point to yz plane\n");
 		}
 		Frotate<<<256,512>>>(dev_back_image, dev_tempback_image);
-		if (DebugFile > 0)
-		{
-			SaveImageToFile(dev_back_image, "dev_back_img.bin", Nx * Ny * Nz);
-			SaveImageToFile(dev_tempback_image, "dev_back_img_roted.bin", Nx * Ny * Nz);
-		}
-		
+		cudaDeviceSynchronize();
 		if(DebugInfo>0)
 		{
 			printf("***********************************************************************************\n");
@@ -506,7 +503,7 @@ int main(int argc, char** argv)
 				Forwardprojyz << <256, 512 >> > (dev_image, lines, realnlines);
 				Backprojyz << <256, 512 >> > (dev_image, dev_back_image, lines, realnlines, 0);
 			}
-			
+			cudaDeviceSynchronize();
 			printf("Done!\n");
 		} // if using OSEM, move the iteration to #OSEM
 
