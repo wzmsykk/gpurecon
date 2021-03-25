@@ -46,9 +46,9 @@ void PrintConfig()
 
 
 
-IDEF_ErrorCode SaveImageToFile(float * dev_image, char* filename, int size)
+int SaveImageToFile(float * dev_image, char* filename, int size)
 {
-
+    printf("saving image to %s \n", filename);
 	float * host_image = (float *)malloc(sizeof(float)*size);
 	cudaMemcpy(host_image, dev_image, size * sizeof(float), cudaMemcpyDeviceToHost);
 
@@ -59,14 +59,14 @@ IDEF_ErrorCode SaveImageToFile(float * dev_image, char* filename, int size)
 		exit(1);
 	}
     fwrite(host_image, sizeof(float), size, save_image);
-    printf("saved image to %s \n",filename);
+    printf("image %s saved!\n",filename);
 	fclose(save_image);
 	free(host_image);    
-    return IDEF_Success;
+    return 0;
     //MATRIX[Y][Z][X]
 }
 
-IDEF_ErrorCode SaveImageToFile_EX(float* dev_image, char* filename, int imagesize, int offset, int savesize)
+int SaveImageToFile_EX(float* dev_image, char* filename, int imagesize, int offset, int savesize)
 {
 
     float* host_image = (float*)malloc(sizeof(float) * imagesize);
@@ -83,6 +83,6 @@ IDEF_ErrorCode SaveImageToFile_EX(float* dev_image, char* filename, int imagesiz
     printf("saved image to %s \n", filename);
     fclose(save_image);
     free(host_image);
-    return IDEF_Success;
+    return 0;
     //MATRIX[Y][Z][X]
 }

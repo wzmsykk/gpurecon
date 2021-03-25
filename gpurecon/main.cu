@@ -12,7 +12,7 @@ int main(int argc, char** argv)
 //	nvcc -arch=sm_20 presort.cu 
 //	./a.out will print usage
 	cudaError_t cudaerr = cudaDeviceSetLimit(cudaLimitMallocHeapSize, 1048576ULL * 256);
-	IDEF_ErrorCode ierr;
+	int ierr;
 	cmdline::parser myparser;
 	myparser.footer("\n\n a GPU accelerated 3D PET OSEM image reconsruction tool.\n");
 	myparser.add<std::string>("lorfile", 'l', "image LOR filename", true, "");
@@ -22,7 +22,7 @@ int main(int argc, char** argv)
 	myparser.add<std::string>("outputname", 'o', "output image filename", false, "imageZYX.bin");
 	myparser.add<int>("bsize", 'b', "batchsize", false,128*128 );
 	myparser.add<int>("niter", 'i', "number of iteration", false, 1);
-	myparser.add("ac", 'a', "using attenuation correction", false, false);
+	myparser.add("ac", 'a', "using attenuation correction");
 	myparser.parse_check(argc, argv);
 
 	bool use_ac = myparser.exist("ac"); //是否使用衰减修正
@@ -228,7 +228,7 @@ int main(int argc, char** argv)
 
 		//从mhd文件中读取CT信息
 		ierr = genctdim(host_ctdim, ct_mhd_path);
-		if (ierr != IDEF_Success) //TO DO 判断err
+		if (ierr != 0) //TO DO 判断err
 		{
 			exit(ierr);
 		}
@@ -245,7 +245,7 @@ int main(int argc, char** argv)
 
 		printf("(INFO): converting ct matrix values into attenuation values.\n");
 		ierr = genacmatrix(device_attenuation_matrix, host_ctdim, ct_bin_path); //将CT矩阵转化为衰减值
-		if (ierr != IDEF_Success)
+		if (ierr != 0)
 		{
 			exit(ierr);
 		}
@@ -434,8 +434,11 @@ int main(int argc, char** argv)
 			//realnlines = 3;
 			if ((i+1) * nlines > totalnumoflinesxz) {
 				realnlines = totalnumoflinesxz - i * nlines;
-				printf("(DEBUG) LAST BATCH XZ LOR SIZE=%d\n",realnlines);
+				printf("(DEBUG) LAST BATCH XZ LOR SIZE=%d ",realnlines);
 			}//防止总数少于batchsize batchsize<0出现奇怪的bug
+			else {
+				printf("(DEBUG) BATCH:%d XZ LOR SIZE=%d ", i, realnlines);
+			}
 			int noffset = i*nlines;
 			
 			
@@ -451,6 +454,7 @@ int main(int argc, char** argv)
 				Forwardprojxz << <256, 512 >> > (dev_image, lines, realnlines);
 				Backprojxz << <256, 512 >> > (dev_image, dev_back_image, lines, realnlines, 0);//changed
 			}
+			printf("Done!\n");
 		} // if using OSEM, move the iteration to #OSEM
 	
 		if(DebugInfo>0)
@@ -481,8 +485,11 @@ int main(int argc, char** argv)
 			int realnlines = nlines;
 			if ((i + 1) * nlines > totalnumoflinesyz) {
 				realnlines = totalnumoflinesyz - i * nlines;
-				printf("(DEBUG) LAST BATCH YZ LOR SIZE=%d\n", realnlines);
+				printf("(DEBUG) LAST BATCH YZ LOR SIZE=%d ", realnlines);
 			}//防止总数少于batchsize
+			else {
+				printf("(DEBUG) BATCH:%d YZ LOR SIZE=%d ", i, realnlines);
+			}
 			int noffset = i*nlines;
 			
 
@@ -500,7 +507,7 @@ int main(int argc, char** argv)
 				Backprojyz << <256, 512 >> > (dev_image, dev_back_image, lines, realnlines, 0);
 			}
 			
-			
+			printf("Done!\n");
 		} // if using OSEM, move the iteration to #OSEM
 
 		Brotate<<<256,512>>>(dev_back_image, dev_tempback_image);//转回去
