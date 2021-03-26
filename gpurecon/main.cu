@@ -218,7 +218,7 @@ int main(int argc, char** argv)
 	//申请内存 转换CT
 	if (use_ac) {
 
-
+		bool readCT = true;
 		//device ct信息结构体初始化
 		cudaMalloc((void**)&dev_ctdim, sizeof(CTdims));
 		cudaMemset(dev_ctdim, 0, sizeof(CTdims));
@@ -226,13 +226,18 @@ int main(int argc, char** argv)
 		host_ctdim = (CTdims*)malloc(sizeof(CTdims));
 		memset(host_ctdim, 0, sizeof(CTdims));
 
+
+		if (strlen(ct_mhd_path) == 0) {
+			printf("(debug)No CT header provided. Just AC TEST.");
+			readCT = false;
+		}
 		//从mhd文件中读取CT信息
 		ierr = genctdim(host_ctdim, ct_mhd_path);
 		if (ierr != 0) //TO DO 判断err
 		{
 			exit(ierr);
 		}
-		
+
 
 		//得到ct总voxel个数, 初始化host_attenu_matrix衰减矩阵
 		size_t ctvoxcount = host_ctdim->xdim * host_ctdim->ydim * host_ctdim->zdim;
@@ -244,11 +249,17 @@ int main(int argc, char** argv)
 		printf("(MEMORY): allocating memory to store temp attenuation matrix, device memory used: %lf MB\n", totalDeviceMemoryUsed / 1048576.0);
 
 		printf("(INFO): converting ct matrix values into attenuation values.\n");
-		ierr = genacmatrix(device_attenuation_matrix, host_ctdim, ct_bin_path); //将CT矩阵转化为衰减值
-		if (ierr != 0)
-		{
-			exit(ierr);
+		if (readCT) {
+			ierr = genacmatrix(device_attenuation_matrix, host_ctdim, ct_bin_path, true); //将CT矩阵转化为衰减值
+			if (ierr != 0)
+			{
+				exit(ierr);
+			}
 		}
+		else {
+			genacmatrix(device_attenuation_matrix, host_ctdim, ct_bin_path, false);
+		}
+		
 
 
 		printf("(INFO): done.\n");
@@ -364,6 +375,10 @@ int main(int argc, char** argv)
 
 
 			extract_attenu_value_to_list_with_offset << <GRIDSIZEX, BLOCKSIZEX >> > (lines, bsizeac, dev_linesxz_attvalue_list, noffset);
+
+
+
+
 			//清空数据
 			cudaMemset((void*)dev_linestat, 0, sizeof(LineStatus) * bsizeac);
 			cudaMemset((void*)dev_tempmat_alphas, 0, sizeof(float) * bsizeac * max_len);
@@ -371,9 +386,20 @@ int main(int argc, char** argv)
 			cudaMemset((void*)dev_mat_alphas, 0, sizeof(float) * bsizeac * max_len);
 			cudaDeviceSynchronize();
 
-			//衰减修正结束
+
+			//DEBUG DUMP AC VALUES AND LORS
+			char* dumpfilename = (char*)malloc(sizeof(char) * 40);
+			memset(dumpfilename, 0, sizeof(char) * 40);
+			sprintf(dumpfilename, "acdump_batch_%d.txt", i);
+			dumpAcValueAndLOR(dumpfilename, lines, 10);
+			free(dumpfilename);
+
+			
 
 		}
+		
+
+		//衰减修正结束
 		printf("attu corr for XZ lines done.\n");
 		//计算YZ线上的衰减值
 		printf("***********************************************************************************\n");
@@ -533,9 +559,7 @@ int main(int argc, char** argv)
 	//SaveImageToFile(dev_image, "image.bin", Nx * Ny * Nz); //不再存为非ZYX格式
 	Rrotate << <256, 512 >> > (dev_image, dev_tempback_image);//存为ZYX格式	
 	SaveImageToFile(dev_tempback_image, const_cast<char *>(output_name), Nx * Ny * Nz);
-	if (Nz > 2) {
-		SaveImageToFile_EX(dev_tempback_image, "imageZYX_M2.bin", Nx* Ny* Nz, Nx* Ny, Nx* Ny* (Nz - 2));//去掉顶部和底部两片之后的结果
-	}
+
 	
 	printf("************************************************\n");
 	printf("   all done!! elapsed time is %f s\n",elapsedTime/1000.0);	

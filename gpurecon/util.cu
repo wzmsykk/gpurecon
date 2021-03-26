@@ -86,3 +86,29 @@ int SaveImageToFile_EX(float* dev_image, char* filename, int imagesize, int offs
     return 0;
     //MATRIX[Y][Z][X]
 }
+
+
+int dumpAcValueAndLOR(char* filename, CUDAlor* lines, int dumpcount) {
+    int i;
+    CUDAlor* host_lor = (CUDAlor*)malloc(sizeof(CUDAlor) * dumpcount);
+    cudaMemcpy(host_lor,lines, sizeof(CUDAlor) * dumpcount, cudaMemcpyDeviceToHost);
+    CUDAlor* currline;
+    FILE* fp = fopen(filename, "w");
+    float x0, x1, y0, y1, z0, z1, value;
+    for (i = 0; i < dumpcount; i++) {
+        currline = host_lor +i;
+        x0 = currline->rx0;
+        x1 = currline->rx1;
+        y0 = currline->ry0;
+        y1 = currline->ry1;
+        z0 = currline->rz0;
+        z1 = currline->rz1;
+        value = currline->value;
+
+        fprintf(fp, "LOR COUNT:%d x0:%f y0:%f z0:%f x1:%f y1:%f z1:%f value:%f\n", i, x0, y0, z0, x1, y1, z1, value);
+
+    }
+    free(host_lor);
+    fclose(fp);
+    return 0;
+}

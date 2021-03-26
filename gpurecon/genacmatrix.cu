@@ -6,7 +6,7 @@ int genctdim(CTdims* host_ctdim, char* ctheader) {
 	char* p, * vp;
 	int totalnumoflines;
 	int cmpres = 0;
-	if (ctheader != "") {
+	if (strlen(ctheader) != 0) {
 		fp = fopen(ctheader, "r");
 		if (fp == nullptr) {
 			printf("(ERROR) CT headerfile not found.\n");
@@ -70,44 +70,74 @@ int genctdim(CTdims* host_ctdim, char* ctheader) {
 
 	return 0;
 }
-int genacmatrix(float* dev_attenuation_matrix, CTdims* host_ctdim, char* ct_bin_path) {
+int genacmatrix(float* dev_attenuation_matrix, CTdims* host_ctdim, char* ct_bin_path, bool readCT) {
 	CTdims* dev_ctdim;
 	cudaMalloc((void**)&dev_ctdim, sizeof(CTdims));
-
-	FILE* fp = fopen(ct_bin_path, "rb");
-	if (fp == nullptr) {//文件是否存在
-		printf("(ERROR) CT binfile not found.\n");
-		return -4;
-	}
-	size_t fsize_real, fsize_exp;
-	fseek(fp, 0, SEEK_END);
-	fsize_real = ftell(fp);
-	size_t ctvoxcount = host_ctdim->xdim * host_ctdim->ydim * host_ctdim->zdim ;
-	fsize_exp = ctvoxcount * sizeof(short);//预期是short TO DO 其他类型
-	printf("(INFO) Expected bin file size:%zu, found bin file size:%zu", fsize_exp, fsize_real);
-	if (fsize_exp != fsize_real) {
-		printf("(ERROR) CT binfile not found.\n");
-		return -5;
-	}
-
+	size_t ctvoxcount = host_ctdim->xdim * host_ctdim->ydim * host_ctdim->zdim;
 	short* dev_ct_matrix;
 	cudaMalloc((void**)&dev_ct_matrix, ctvoxcount * sizeof(short));
-	short* host_ct_matrix = (short*)malloc(ctvoxcount *sizeof(short));
-	fread(host_ct_matrix, sizeof(short), ctvoxcount, fp);
-	fclose(fp);
-
-	cudaMemcpy(dev_ct_matrix, host_ct_matrix, ctvoxcount * sizeof(short), cudaMemcpyHostToDevice);
-	cudaMemcpy(dev_ctdim, host_ctdim, sizeof(CTdims), cudaMemcpyHostToDevice);
+	short* host_ct_matrix = (short*)malloc(ctvoxcount * sizeof(short));
 
 
-	cudaDeviceSynchronize();
+	if (readCT) {
+		FILE* fp = fopen(ct_bin_path, "rb");
+		if (fp == nullptr) {//文件是否存在
+			printf("(ERROR) CT binfile not found.\n");
+			return -4;
+		}
+		size_t fsize_real, fsize_exp;
+		fseek(fp, 0, SEEK_END);
+		fsize_real = ftell(fp);
+		
+		fsize_exp = ctvoxcount * sizeof(short);//预期是short TO DO 其他类型
+		printf("(INFO) Expected bin file size:%zu, found bin file size:%zu", fsize_exp, fsize_real);
+		if (fsize_exp != fsize_real) {
+			printf("(ERROR) CT binfile size mismatch.\n");
+			return -5;
+		}
+		fread(host_ct_matrix, sizeof(short), ctvoxcount, fp);
+		fclose(fp);
+		cudaMemcpy(dev_ct_matrix, host_ct_matrix, ctvoxcount * sizeof(short), cudaMemcpyHostToDevice);
+		cudaMemcpy(dev_ctdim, host_ctdim, sizeof(CTdims), cudaMemcpyHostToDevice);
+		genacvalue << <256, 512 >> > (dev_attenuation_matrix, dev_ctdim, dev_ct_matrix);
+	}
+	else {
+		genacvalue_fill <<<256, 512 >>> (dev_attenuation_matrix, dev_ctdim, dev_ct_matrix, 0.0);
+	}
+	
+	
 
-	genacvalue << <256, 512 >> > (dev_attenuation_matrix, dev_ctdim, dev_ct_matrix);
+	
+	
+
+	
+
+
+
+	
 	cudaDeviceSynchronize();
 	free(host_ct_matrix);
 	cudaFree(dev_ct_matrix);
 	return 0;
 }
+__global__ void genacvalue_fill(float* attenuation_matrix, CTdims* dev_ctdim, short* dev_ct_matrix, float value) {
+	//gen a ac matrix filled by custom float
+	int xdim = dev_ctdim->xdim;
+	int ydim = dev_ctdim->ydim;
+	int zdim = dev_ctdim->zdim;
+	int totalvoxels = xdim * ydim * zdim;
+	for (int line_index = threadIdx.x + blockIdx.x * blockDim.x; line_index < totalvoxels; line_index += blockDim.x * gridDim.x) {
+		int mz = line_index / (xdim * ydim);
+		int temp = line_index - mz * (xdim * ydim);
+		int my = temp / xdim;
+		int mx = temp - my * xdim;
+		attenuation_matrix[mz * dev_ctdim->ydim * dev_ctdim->xdim + my * dev_ctdim->xdim + mx] = value;
+	}
+
+}
+
+
+
 __global__ void genacvalue(float* attenuation_matrix, CTdims* dev_ctdim, short* dev_ct_matrix) {
 	//do nothing
 	////miu=1e-8
@@ -118,6 +148,8 @@ __global__ void genacvalue(float* attenuation_matrix, CTdims* dev_ctdim, short* 
 	int ydim = dev_ctdim->ydim;
 	int zdim = dev_ctdim->zdim;
 	int totalvoxels = xdim * ydim * zdim;
+	
+
 	for (int line_index = threadIdx.x + blockIdx.x * blockDim.x; line_index < totalvoxels; line_index += blockDim.x * gridDim.x) {
 		int mz = line_index / (xdim * ydim);
 		int temp = line_index - mz * (xdim * ydim);

@@ -9,8 +9,9 @@ __global__ void Frotate(float *back_image, float *back_imagetemp)
 }
 //backimg==planeXZ
 //backtempimg==planeYZ
-//[Y][Z][X]->[X][Z][Y]
+//SRC[Y][Z][X]->DST[X][Z][Y]
 //j%Ny=y j/Ny=z
+//j=z*N_y+y
 __global__ void Brotate(float* back_image, float* back_imagetemp)
 {
 	for (int i = 0; i < Ny; i++) {
@@ -21,8 +22,9 @@ __global__ void Brotate(float* back_image, float* back_imagetemp)
 }
 //backimg==planeXZ
 //backtempimg==planeYZ
-//[X][Z][Y]->[Y][Z][X]
+//SRC[X][Z][Y]->DST[Y][Z][X]
 //j%Nx=x j/Nx=z
+//j=z*Nx+x
 __global__ void Rrotate(float* imageYZX, float* imageZYX) {
 	for (int i = 0; i < Nz; i++) {
 		for (int j = threadIdx.x + blockIdx.x * blockDim.x; j < Ny * Nx; j += blockDim.x * gridDim.x) {
@@ -32,7 +34,7 @@ __global__ void Rrotate(float* imageYZX, float* imageZYX) {
 }
 //planeXZ->planeXY
 //imageYZX==imageZYX
-//[Y][Z][X]->[Z][Y][X]
+//SRC[Y][Z][X]->DST[Z][Y][X]
 //i=z j%Nx=x j/Nx=y
-//j=x+Nx*y
+//j=y*Nx+x
 //

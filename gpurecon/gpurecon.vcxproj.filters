@@ -27,7 +27,4 @@
     <ClInclude Include="include\cmdline.h" />
     <ClInclude Include="ideftype.h" />
   </ItemGroup>
-  <ItemGroup>
-    <None Include="ClassDiagram.cd" />
-  </ItemGroup>
 </Project>

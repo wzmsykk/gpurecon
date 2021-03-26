@@ -7,8 +7,8 @@
 #define GRIDSIZEX 128
 #define BLOCKSIZEX 256
 
-//#define DEBUG_CALC_PROC
-//#define DEBUG_STEP_RESULT
+#define DEBUG_CALC_PROC
+#define DEBUG_STEP_RESULT
 
 #define MAX_INFO_LINES 1
 int batchcorr_gpu(CUDAlor* lines, int linesN, CTdims* ctdim, float* const attenuation_matrix, void* a_big_dev_buffer) {

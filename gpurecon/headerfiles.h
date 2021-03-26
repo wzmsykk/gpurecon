@@ -162,9 +162,10 @@ __global__ void Fnorm(float *dev_image, float *back_image, float *dev_norm_image
 
 //__global__ void attenucorryz(float* lines, int linesN, CTdims* ctdim, float* attenuation_matrix);
 int genctdim(CTdims* host_ctdim, char* ctheader);
-int genacmatrix(float* dev_attenuation_matrix, CTdims* host_ctdim, char* ct_bin_path);
+int genacmatrix(float* dev_attenuation_matrix, CTdims* host_ctdim, char* ct_bin_path, bool readCT);
 
 __global__ void genacvalue(float* attenuation_matrix, CTdims* dev_ctdim, short* dev_ct_matrix);
+__global__ void genacvalue_fill(float* attenuation_matrix, CTdims* dev_ctdim, short* dev_ct_matrix, float value);
 int GetLines(char* filename);
 void PrintConfig();
 void CalcNormImage(float *norm_image, int numoflinesForNorm, const char* filename);
@@ -172,4 +173,4 @@ __device__ Lorposition CalcLorPositionFull(short rsectorID1, short rsectorID2, s
 //__device__ Lorposition CalcLorPosition(short moduleID1, short moduleID2, short crystalID1, short crystalID2);
 int SaveImageToFile(float * dev_image, char* filename, int size);
 int SaveImageToFile_EX(float* dev_image, char* filename, int imagesize, int offset, int savesize);
-
+int dumpAcValueAndLOR(char* filename, CUDAlor* lines, int dumpcount);
