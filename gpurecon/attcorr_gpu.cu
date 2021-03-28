@@ -7,8 +7,8 @@
 #define GRIDSIZEX 128
 #define BLOCKSIZEX 256
 
-#define DEBUG_CALC_PROC
-#define DEBUG_STEP_RESULT
+//#define DEBUG_CALC_PROC
+//#define DEBUG_STEP_RESULT
 
 #define MAX_INFO_LINES 1
 int batchcorr_gpu(CUDAlor* lines, int linesN, CTdims* ctdim, float* const attenuation_matrix, void* a_big_dev_buffer) {
@@ -337,6 +337,11 @@ __global__ void alphaextrema(CUDAlor* lines, int nlines, CTdims* ctdim, LineStat
 			amin[line_index] = alphamin;
 #ifdef DEBUG_CALC_PROC
 			if (line_index < MAX_INFO_LINES) {
+				printf("ct_x0=%f,ct_xn=%f\n", ctx0, ctxn);
+				printf("x0=%f,x1=%f,y0=%f,y1=%f,z0=%f,z1=%f\n", x0, x1,y0,y1,z0,z1);
+				printf("amaxvec=[%f,%f,%f,%f]\n", amaxvec[0], amaxvec[1], amaxvec[2], amaxvec[3]);
+				printf("aminvec=[%f,%f,%f,%f]\n", aminvec[0], aminvec[1], aminvec[2], aminvec[3]);
+				printf("amax_end=%d,amin_end=%d\n", amax_end, amin_end);
 			printf("ID:%d,amax:%f,amin:%f\n", line_index, amax[line_index], amin[line_index]);
 			}
 #endif // DEBUG_CALC_PROC
@@ -387,28 +392,28 @@ __global__ void alphavecs(CUDAlor* lines, int nlines, CTdims* ctdim, LineStatus*
 			calc_y = linestat[line_index].calcy;
 			calc_z = linestat[line_index].calcz;
 			if ((x1 - x0) >= 0) {
-				imin = ctnx - floor((ctxn - alphamin * (x1 - x0) - x0) / xspace);
-				imax = floor((x0 + alphamax * (x1 - x0) - ctx0) / xspace);
+				imin = ctnx - floorf((ctxn - alphamin * (x1 - x0) - x0) / xspace);
+				imax = floorf((x0 + alphamax * (x1 - x0) - ctx0) / xspace);
 			}
 			else {
-				imin = ctnx - floor((ctxn - alphamax * (x1 - x0) - x0) / xspace);
-				imax = floor((x0 + alphamin * (x1 - x0) - ctx0) / xspace);
+				imin = ctnx - floorf((ctxn - alphamax * (x1 - x0) - x0) / xspace);
+				imax = floorf((x0 + alphamin * (x1 - x0) - ctx0) / xspace);
 			}
 			if ((y1 - y0) >= 0) {
-				jmin = ctny - floor((ctyn - alphamin * (y1 - y0) - y0) / yspace);
-				jmax = floor((y0 + alphamax * (y1 - y0) - cty0) / yspace);
+				jmin = ctny - floorf((ctyn - alphamin * (y1 - y0) - y0) / yspace);
+				jmax = floorf((y0 + alphamax * (y1 - y0) - cty0) / yspace);
 			}
 			else {
-				jmin = ctny - floor((ctyn - alphamax * (y1 - y0) - y0) / yspace);
-				jmax = floor((y0 + alphamin * (y1 - y0) - cty0) / yspace);
+				jmin = ctny - floorf((ctyn - alphamax * (y1 - y0) - y0) / yspace);
+				jmax = floorf((y0 + alphamin * (y1 - y0) - cty0) / yspace);
 			}
 			if ((z1 - z0) >= 0) {
-				kmin = ctnz - floor((ctzn - alphamin * (z1 - z0) - z0) / zspace);
-				kmax = floor((z0 + alphamax * (z1 - z0) - ctz0) / zspace);
+				kmin = ctnz - floorf((ctzn - alphamin * (z1 - z0) - z0) / zspace);
+				kmax = floorf((z0 + alphamax * (z1 - z0) - ctz0) / zspace);
 			}
 			else {
-				kmin = ctnz - floor((ctzn - alphamax * (z1 - z0) - z0) / zspace);
-				kmax = floor((z0 + alphamin * (z1 - z0) - ctz0) / zspace);
+				kmin = ctnz - floorf((ctzn - alphamax * (z1 - z0) - z0) / zspace);
+				kmax = floorf((z0 + alphamin * (z1 - z0) - ctz0) / zspace);
 			}
 			float* ax = tempmat_alphas + line_index * (ctnx + ctny + ctnz + 3 + 2);
 			float* ay = tempmat_alphas + line_index * (ctnx + ctny + ctnz + 3 + 2) + ctnx + 1;
@@ -566,9 +571,9 @@ __global__ void dist_and_ID_in_voxel(CUDAlor* lines, int nlines, CTdims* ctdim, 
 			for (int i = 0; i < vec_len-1; i++) {
 				l_ptr[i] = (alphavec_ptr[i + 1] - alphavec_ptr[i]) * D;
 				mean = (alphavec_ptr[i + 1] + alphavec_ptr[i]) / 2.0f;
-				mx=floor(((x1 - x0) * mean + (x0 - ctx0)) / xspace);
-				my= floor(((y1 - y0) * mean + (y0 - cty0)) / yspace);
-				mz= floor(((z1 - z0) * mean + (z0 - ctz0)) / zspace);
+				mx= floorf(((x1 - x0) * mean + (x0 - ctx0)) / xspace);
+				my= floorf(((y1 - y0) * mean + (y0 - cty0)) / yspace);
+				mz= floorf(((z1 - z0) * mean + (z0 - ctz0)) / zspace);
 				myvoxels[i].xid = mx;
 				myvoxels[i].yid = my;
 				myvoxels[i].zid = mz;

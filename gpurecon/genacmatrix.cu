@@ -102,7 +102,9 @@ int genacmatrix(float* dev_attenuation_matrix, CTdims* host_ctdim, char* ct_bin_
 		genacvalue << <256, 512 >> > (dev_attenuation_matrix, dev_ctdim, dev_ct_matrix);
 	}
 	else {
+		cudaMemcpy(dev_ctdim, host_ctdim, sizeof(CTdims), cudaMemcpyHostToDevice);
 		genacvalue_fill <<<256, 512 >>> (dev_attenuation_matrix, dev_ctdim, dev_ct_matrix, 0.0);
+		
 	}
 	
 	

@@ -231,7 +231,7 @@ int main(int argc, char** argv)
 			printf("(debug)No CT header provided. Just AC TEST.");
 			readCT = false;
 		}
-		//从mhd文件中读取CT信息
+		//从mhd文件中读取CT信息,若没有则为默认重建图像大小
 		ierr = genctdim(host_ctdim, ct_mhd_path);
 		if (ierr != 0) //TO DO 判断err
 		{
@@ -266,7 +266,7 @@ int main(int argc, char** argv)
 		if (DebugFile > 0) {
 			SaveImageToFile(device_attenuation_matrix, "ATT_IMAGE.bin", ctvoxcount);//保存衰减矩阵到文件
 		}
-		cudaMemcpy(host_ctdim, dev_ctdim, sizeof(CTdims), cudaMemcpyDeviceToHost);
+		cudaMemcpy(dev_ctdim, host_ctdim, sizeof(CTdims), cudaMemcpyHostToDevice);
 
 		xdim = host_ctdim->xdim;
 		ydim = host_ctdim->ydim;
@@ -361,6 +361,9 @@ int main(int argc, char** argv)
 				realnlines = totalnumoflinesxz - i * bsizeac;
 				printf("(DEBUG) LAST BATCH XZ LOR SIZE=%d\n", realnlines);
 			}//防止总数少于batchsize batchsize<0出现奇怪的bug
+			else {
+				printf("(DEBUG) BATCH:%d XZ LOR SIZE=%d\n", i, realnlines);
+			}
 			int noffset = i * bsizeac;
 			convertolorxz << <256, 512 >> > (dev_lor_data_array, dev_indexymax, lines, realnlines, noffset);//将lor_data中lor根据index_y_max存入lines
 		
@@ -378,14 +381,14 @@ int main(int argc, char** argv)
 
 
 
-
+			cudaDeviceSynchronize();
 			//清空数据
 			cudaMemset((void*)dev_linestat, 0, sizeof(LineStatus) * bsizeac);
 			cudaMemset((void*)dev_tempmat_alphas, 0, sizeof(float) * bsizeac * max_len);
 			cudaMemset((void*)dev_alphavecsize, 0, sizeof(int) * bsizeac);
 			cudaMemset((void*)dev_mat_alphas, 0, sizeof(float) * bsizeac * max_len);
+			
 			cudaDeviceSynchronize();
-
 
 			//DEBUG DUMP AC VALUES AND LORS
 			char* dumpfilename = (char*)malloc(sizeof(char) * 40);
@@ -411,6 +414,9 @@ int main(int argc, char** argv)
 				realnlines = totalnumoflinesyz - i * bsizeac;
 				printf("(DEBUG) LAST BATCH YZ LOR SIZE=%d\n", realnlines);
 			}//防止总数少于batchsize batchsize<0出现奇怪的bug
+			else {
+				printf("(DEBUG) BATCH:%d YZ LOR SIZE=%d\n", i, realnlines);
+			}
 			int noffset = i * bsizeac;
 			convertolorxz << <256, 512 >> > (dev_lor_data_array, dev_indexxmax, lines, realnlines, noffset);//将lor_data中lor根据index_x_max存入lines
 
@@ -426,6 +432,7 @@ int main(int argc, char** argv)
 
 			extract_attenu_value_to_list_with_offset << <GRIDSIZEX, BLOCKSIZEX >> > (lines, bsizeac, dev_linesyz_attvalue_list, noffset);
 			//清空数据
+			cudaDeviceSynchronize();
 			cudaMemset((void*)dev_linestat, 0, sizeof(LineStatus) * bsizeac);
 			cudaMemset((void*)dev_tempmat_alphas, 0, sizeof(float) * bsizeac * max_len);
 			cudaMemset((void*)dev_alphavecsize, 0, sizeof(int) * bsizeac);
