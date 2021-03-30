@@ -20,8 +20,9 @@
 #define TOR_WIDTH 3
 #define pixel_size 2.0
 #define ISIGMA 0.8824
-#define DebugInfo 1
-#define DebugFile 1
+#define LogLevel 5 //5 ALL 4 Info 3 Debug 2 Warning 1 ERROR 0 NONE
+#define DumpLevel 1
+#define MAXFILENAME 128
 //#define DEBUG
 
 
@@ -154,9 +155,9 @@ __global__ void Backprojxz( float *dev_image, float *back_image, CUDAlor* lines,
 __global__ void Backprojyz( float *dev_image, float *back_image, CUDAlor* lines, int linesN ,int backProjOnly );
 __global__ void Backprojxz_ac(float* dev_image, float* back_image, CUDAlor* lines, int linesN, int backProjOnly);
 __global__ void Backprojyz_ac(float* dev_image, float* back_image, CUDAlor* lines, int linesN, int backProjOnly);
-__global__ void Frotate(float *back_image, float *back_imagetemp);
-__global__ void Brotate(float* back_imagetemp, float* back_image);
-__global__ void Rrotate(float* imageYZX, float* imageZYX);
+__global__ void Frotate(float* dst_image, float* src_image);
+__global__ void Brotate(float* dst_image, float* src_image);
+__global__ void Rrotate(float* dst_image, float* src_image);
 __global__ void Fnorm(float *dev_image, float *back_image, float *dev_norm_image);
 
 

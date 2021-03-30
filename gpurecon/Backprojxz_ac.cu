@@ -1,7 +1,7 @@
 #include"headerfiles.h"
 __global__ void Backprojxz_ac(float* dev_image, float* back_image, CUDAlor* lines, int linesN, int backProjOnly)
 {
-	//current slice
+	//current slice YZX
 	__shared__ float slice[Nx * Nz];
 	int img_slice = Nx * Nz;
 	float max_distance = TOR_WIDTH * TOR_WIDTH / 2.0f;

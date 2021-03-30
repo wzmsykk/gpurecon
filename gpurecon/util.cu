@@ -94,7 +94,7 @@ int dumpAcValueAndLOR(char* filename, CUDAlor* lines, int dumpcount) {
     cudaMemcpy(host_lor,lines, sizeof(CUDAlor) * dumpcount, cudaMemcpyDeviceToHost);
     CUDAlor* currline;
     FILE* fp = fopen(filename, "w");
-    float x0, x1, y0, y1, z0, z1, value;
+    float x0, x1, y0, y1, z0, z1, acvalue,value;
     for (i = 0; i < dumpcount; i++) {
         currline = host_lor +i;
         x0 = currline->rx0;
@@ -103,9 +103,9 @@ int dumpAcValueAndLOR(char* filename, CUDAlor* lines, int dumpcount) {
         y1 = currline->ry1;
         z0 = currline->rz0;
         z1 = currline->rz1;
+        acvalue = currline->attcorrvalue;
         value = currline->value;
-
-        fprintf(fp, "LOR COUNT:%d x0:%f y0:%f z0:%f x1:%f y1:%f z1:%f value:%f\n", i, x0, y0, z0, x1, y1, z1, value);
+        fprintf(fp, "LOR COUNT:%d x0:%f y0:%f z0:%f x1:%f y1:%f z1:%f acvalue:%f value:%f\n", i, x0, y0, z0, x1, y1, z1, acvalue, value);
 
     }
     free(host_lor);

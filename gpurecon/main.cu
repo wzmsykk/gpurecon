@@ -23,12 +23,13 @@ int main(int argc, char** argv)
 	myparser.add<int>("bsize", 'b', "batchsize", false,128*128 );
 	myparser.add<int>("niter", 'i', "number of iteration", false, 1);
 	myparser.add("ac", 'a', "using attenuation correction");
+	myparser.add("dump", 'd', "dump intermediate data");
 	myparser.parse_check(argc, argv);
 
 	bool use_ac = myparser.exist("ac"); //是否使用衰减修正
 	int iterationCount = myparser.get<int>("niter");		//迭代次数
 	int batchsize = myparser.get<int>("bsize");			//批次大小
-	
+	bool dump = myparser.exist("dump");//是否保存中间文件
 	char* norm_lor_path = const_cast<char*>(myparser.get<std::string>("normfile").c_str());
 	char* lor_path = const_cast<char*>(myparser.get<std::string>("lorfile").c_str());
 	char* ct_mhd_path = const_cast<char*>(myparser.get<std::string>("ctmhdfile").c_str());
@@ -263,7 +264,7 @@ int main(int argc, char** argv)
 
 
 		printf("(INFO): done.\n");
-		if (DebugFile > 0) {
+		if (DumpLevel > 0) {
 			SaveImageToFile(device_attenuation_matrix, "ATT_IMAGE.bin", ctvoxcount);//保存衰减矩阵到文件
 		}
 		cudaMemcpy(dev_ctdim, host_ctdim, sizeof(CTdims), cudaMemcpyHostToDevice);
@@ -368,16 +369,16 @@ int main(int argc, char** argv)
 			convertolorxz << <256, 512 >> > (dev_lor_data_array, dev_indexymax, lines, realnlines, noffset);//将lor_data中lor根据index_y_max存入lines
 		
 			//衰减修正开始
-			bsizeac = realnlines;//该批次实际的LOR个数 realnlines<=bsizeac
+			// realnlines;//该批次实际的LOR个数 realnlines<=bsizeac
 
-			calc_stat << <GRIDSIZEX, BLOCKSIZEX >> > (lines, bsizeac, dev_linestat);
-			alphaextrema << <GRIDSIZEX, BLOCKSIZEX >> > (lines, bsizeac, dev_ctdim, dev_linestat, dev_amin, dev_amax, dev_tempvec_x_4f, dev_tempvec_y_4f);
-			alphavecs << <GRIDSIZEX, BLOCKSIZEX >> > (lines, bsizeac, dev_ctdim, dev_linestat, dev_amin, dev_amax, dev_tempmat_alphas, dev_mat_alphas, dev_alphavecsize);
-			dist_and_ID_in_voxel << <GRIDSIZEX, BLOCKSIZEX >> > (lines, bsizeac, dev_ctdim, dev_linestat, dev_voxelidvec, dev_dis, dev_mat_alphas, dev_alphavecsize);
-			attu_inner_product << <GRIDSIZEX, BLOCKSIZEX >> > (lines, bsizeac, dev_ctdim, device_attenuation_matrix, dev_linestat, dev_voxelidvec, dev_dis, dev_alphavecsize);
+			calc_stat << <GRIDSIZEX, BLOCKSIZEX >> > (lines, realnlines, dev_linestat);
+			alphaextrema << <GRIDSIZEX, BLOCKSIZEX >> > (lines, realnlines, dev_ctdim, dev_linestat, dev_amin, dev_amax, dev_tempvec_x_4f, dev_tempvec_y_4f);
+			alphavecs << <GRIDSIZEX, BLOCKSIZEX >> > (lines, realnlines, dev_ctdim, dev_linestat, dev_amin, dev_amax, dev_tempmat_alphas, dev_mat_alphas, dev_alphavecsize);
+			dist_and_ID_in_voxel << <GRIDSIZEX, BLOCKSIZEX >> > (lines, realnlines, dev_ctdim, dev_linestat, dev_voxelidvec, dev_dis, dev_mat_alphas, dev_alphavecsize);
+			attu_inner_product << <GRIDSIZEX, BLOCKSIZEX >> > (lines, realnlines, dev_ctdim, device_attenuation_matrix, dev_linestat, dev_voxelidvec, dev_dis, dev_alphavecsize);
 
 
-			extract_attenu_value_to_list_with_offset << <GRIDSIZEX, BLOCKSIZEX >> > (lines, bsizeac, dev_linesxz_attvalue_list, noffset);
+			extract_attenu_value_to_list_with_offset << <GRIDSIZEX, BLOCKSIZEX >> > (lines, realnlines, dev_linesxz_attvalue_list, noffset);
 
 
 
@@ -391,11 +392,14 @@ int main(int argc, char** argv)
 			cudaDeviceSynchronize();
 
 			//DEBUG DUMP AC VALUES AND LORS
-			char* dumpfilename = (char*)malloc(sizeof(char) * 40);
-			memset(dumpfilename, 0, sizeof(char) * 40);
-			sprintf(dumpfilename, "acdump_batch_%d.txt", i);
-			dumpAcValueAndLOR(dumpfilename, lines, 10);
-			free(dumpfilename);
+			if (dump && DumpLevel > 1) {
+				char* dumpfilename = (char*)malloc(sizeof(char) * 40);
+				memset(dumpfilename, 0, sizeof(char) * 40);
+				sprintf(dumpfilename, "ac_dump_batch_%d.txt", i);
+				dumpAcValueAndLOR(dumpfilename, lines, 10);
+				free(dumpfilename);
+			}
+			
 
 			
 
@@ -421,16 +425,16 @@ int main(int argc, char** argv)
 			convertolorxz << <256, 512 >> > (dev_lor_data_array, dev_indexxmax, lines, realnlines, noffset);//将lor_data中lor根据index_x_max存入lines
 
 			//衰减修正开始
-			bsizeac = realnlines;//该批次实际的LOR个数 realnlines<=bsizeac
+			//realnlines;该批次实际的LOR个数 realnlines<=bsizeac
 
-			calc_stat << <GRIDSIZEX, BLOCKSIZEX >> > (lines, bsizeac, dev_linestat);
-			alphaextrema << <GRIDSIZEX, BLOCKSIZEX >> > (lines, bsizeac, dev_ctdim, dev_linestat, dev_amin, dev_amax, dev_tempvec_x_4f, dev_tempvec_y_4f);
-			alphavecs << <GRIDSIZEX, BLOCKSIZEX >> > (lines, bsizeac, dev_ctdim, dev_linestat, dev_amin, dev_amax, dev_tempmat_alphas, dev_mat_alphas, dev_alphavecsize);
-			dist_and_ID_in_voxel << <GRIDSIZEX, BLOCKSIZEX >> > (lines, bsizeac, dev_ctdim, dev_linestat, dev_voxelidvec, dev_dis, dev_mat_alphas, dev_alphavecsize);
-			attu_inner_product << <GRIDSIZEX, BLOCKSIZEX >> > (lines, bsizeac, dev_ctdim, device_attenuation_matrix, dev_linestat, dev_voxelidvec, dev_dis, dev_alphavecsize);
+			calc_stat << <GRIDSIZEX, BLOCKSIZEX >> > (lines, realnlines, dev_linestat);
+			alphaextrema << <GRIDSIZEX, BLOCKSIZEX >> > (lines, realnlines, dev_ctdim, dev_linestat, dev_amin, dev_amax, dev_tempvec_x_4f, dev_tempvec_y_4f);
+			alphavecs << <GRIDSIZEX, BLOCKSIZEX >> > (lines, realnlines, dev_ctdim, dev_linestat, dev_amin, dev_amax, dev_tempmat_alphas, dev_mat_alphas, dev_alphavecsize);
+			dist_and_ID_in_voxel << <GRIDSIZEX, BLOCKSIZEX >> > (lines, realnlines, dev_ctdim, dev_linestat, dev_voxelidvec, dev_dis, dev_mat_alphas, dev_alphavecsize);
+			attu_inner_product << <GRIDSIZEX, BLOCKSIZEX >> > (lines, realnlines, dev_ctdim, device_attenuation_matrix, dev_linestat, dev_voxelidvec, dev_dis, dev_alphavecsize);
 
 
-			extract_attenu_value_to_list_with_offset << <GRIDSIZEX, BLOCKSIZEX >> > (lines, bsizeac, dev_linesyz_attvalue_list, noffset);
+			extract_attenu_value_to_list_with_offset << <GRIDSIZEX, BLOCKSIZEX >> > (lines, realnlines, dev_linesyz_attvalue_list, noffset);
 			//清空数据
 			cudaDeviceSynchronize();
 			cudaMemset((void*)dev_linestat, 0, sizeof(LineStatus) * bsizeac);
@@ -447,10 +451,14 @@ int main(int argc, char** argv)
 
 
 	//进行三维重建
+	//BACK_IMAGE 在进行XZ重建时为YZX格式
+	//BACK_IMAGE 在进行YZ重建时为XZY格式
+
+
 	for (int iter=0;iter<iterationCount;iter++)
 	{
 		printf("now iteration: #%d\n", iter);
-		if (DebugInfo > 0)
+		if (LogLevel > 0)
 		{
 			printf("***********************************************************************************\n");
 			printf("Doing forward and backward projection for plane xz with lor hitting xz plane (lor-xz)\n");
@@ -460,24 +468,24 @@ int main(int argc, char** argv)
 		//TO DO 
 		maxxzbatch = ceil(totalnumoflinesxz / (float)nlines);
 		//maxxzbatch = 1;
-		for (i= 0; i< maxxzbatch; i++)
+		for (i = 0; i < maxxzbatch; i++)
 		{
-			
+
 			realnlines = nlines;
 			//realnlines = 3;
-			if ((i+1) * nlines > totalnumoflinesxz) {
+			if ((i + 1) * nlines > totalnumoflinesxz) {
 				realnlines = totalnumoflinesxz - i * nlines;
-				printf("(DEBUG) LAST BATCH XZ LOR SIZE=%d ",realnlines);
+				printf("(DEBUG) LAST BATCH XZ LOR SIZE=%d\n", realnlines);
 			}//防止总数少于batchsize batchsize<0出现奇怪的bug
 			else {
-				printf("(DEBUG) BATCH:%d XZ LOR SIZE=%d ", i, realnlines);
+				printf("(DEBUG) BATCH:%d XZ LOR SIZE=%d\n", i, realnlines);
 			}
-			int noffset = i*nlines;
-			
-			
+			int noffset = i * nlines;
+
+
 
 			if (use_ac) {
-				
+
 				convertolorxz_ac << <256, 512 >> > (dev_lor_data_array, dev_indexymax, lines, dev_linesxz_attvalue_list, realnlines, noffset);//将lor_data中lor根据index_y存入lines
 				Forwardprojxz << <256, 512 >> > (dev_image, lines, realnlines);
 				Backprojxz_ac << <256, 512 >> > (dev_image, dev_back_image, lines, realnlines, 0);//changed 			
@@ -488,23 +496,40 @@ int main(int argc, char** argv)
 				Backprojxz << <256, 512 >> > (dev_image, dev_back_image, lines, realnlines, 0);//changed
 			}
 			cudaDeviceSynchronize();
-			printf("Done!\n");
+
+			if (dump && DumpLevel>1) {
+				//DEBUG DUMP AC VALUES AND LORS
+				char* dumpfilename = (char*)malloc(sizeof(char) * 40);
+				memset(dumpfilename, 0, sizeof(char) * 40);
+				if (use_ac)
+				{
+					sprintf(dumpfilename, "recdump_xz_part2_batch_%d.txt", i);
+				}
+				else {
+					sprintf(dumpfilename, "recdump_xz_part2_batch_%d_ac.txt", i);
+				}
+				dumpAcValueAndLOR(dumpfilename, lines, 10);
+				free(dumpfilename);
+				printf("Done!\n");
+			}
+		
+			
 			
 		} // if using OSEM, move the iteration to #OSEM
 		
-		if(DebugInfo>0)
+		if(LogLevel>0)
 		{
 			printf("(IMAGE) rotated image 90 degrees to point to yz plane\n");
 		}
-		Frotate<<<256,512>>>(dev_back_image, dev_tempback_image);
+		Frotate<<<256,512>>>(dev_tempback_image, dev_back_image);//将dev_back_image 转为适合YZ投影的形式
 		cudaDeviceSynchronize();
-		if(DebugInfo>0)
+		if(LogLevel>0)
 		{
 			printf("***********************************************************************************\n");
 			printf("Doing forward and backward projection for plane yz with lor hitting yz plane (lor-yz)\n");	
 			printf("***********************************************************************************\n");
 		}
-		cudaMemcpy(dev_back_image, dev_tempback_image, Nx*Ny*Nz *sizeof(float ),cudaMemcpyDeviceToDevice);
+		cudaMemcpy(dev_back_image, dev_tempback_image, Nx*Ny*Nz *sizeof(float ),cudaMemcpyDeviceToDevice);//将dev_back_image 存回
 
 		maxyzbatch = ceil(totalnumoflinesyz / (float)nlines);
 		//maxyzbatch = 1;
@@ -540,7 +565,7 @@ int main(int argc, char** argv)
 			printf("Done!\n");
 		} // if using OSEM, move the iteration to #OSEM
 
-		Brotate<<<256,512>>>(dev_back_image, dev_tempback_image);//转回去
+		Brotate<<<256,512>>>(dev_tempback_image, dev_back_image);//转回去
 		cudaMemcpy(dev_back_image, dev_tempback_image, Nx*Ny*Nz *sizeof(float ),cudaMemcpyDeviceToDevice);
 
 		if(shouldNormalize>0)
@@ -562,9 +587,15 @@ int main(int argc, char** argv)
 	float elapsedTime;
 	cudaEventElapsedTime(&elapsedTime,start,stop);
 
-
-	//SaveImageToFile(dev_image, "image.bin", Nx * Ny * Nz); //不再存为非ZYX格式
-	Rrotate << <256, 512 >> > (dev_image, dev_tempback_image);//存为ZYX格式	
+	if (DumpLevel>0) {
+		char* filename;
+		filename = (char*)malloc(sizeof(char) * MAXFILENAME);
+		sprintf(filename, "dump_final_image_YZX.bin");
+		SaveImageToFile(dev_tempback_image, filename, Nx* Ny* Nz);
+		free(filename);
+	}
+	//SaveImageToFile(dev_image, "image.bin", Nx * Ny * Nz); //不再存为YZX格式
+	Rrotate << <256, 512 >> > (dev_tempback_image, dev_image);//存为ZYX格式	
 	SaveImageToFile(dev_tempback_image, const_cast<char *>(output_name), Nx * Ny * Nz);
 
 	
